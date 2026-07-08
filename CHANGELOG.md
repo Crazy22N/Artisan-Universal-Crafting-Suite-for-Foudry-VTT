@@ -1,14 +1,14 @@
-# Artisan v1.0.0
+# Changelog
 
-Prima release ufficiale.
+## v1.1.0
 
-## Inclusi
+- Added English localization files and Artisan language option.
+- Added module settings utility dialogs for packages, help and Artisan settings.
+- Cleaned the main Artisan window by keeping operational sections only.
+- Improved light UI readability and help dialog layout.
+- Added crafting tool proficiency bonus to crafting checks.
 
-- Crafting completo con requisiti professione, ingredienti, strumenti, output, import/export e duplicazione ricette.
-- Foraging avanzato con biomi, raccolta casuale mista, peso, quantità min/max, import/export e strumenti competenti.
-- Harvest con tipo creatura, rarità parti, rischio rovina, strumenti richiesti, consumo strumenti opzionale e import/export.
-- Professioni PG con livelli, XP, progressione automatica, moltiplicatori e scheda rapida.
-- Backup completo Artisan.
-- Registro attività.
-- Pacchetti predefiniti.
-- UI ripulita e ottimizzata per ridurre scroll orizzontale in Harvest.
+## v1.0.0
+
+- First official release of Artisan.
+- Crafting, Foraging, Harvest, Actor Professions, XP progression, backup, activity log and preset packages.

@@ -1,5 +1,5 @@
 export default {
     moduleName: "artisan",
     source: "./src",
-    destination: "./dist/artisan"
+    destination: "C:/Users/crazy/AppData/Local/FoundryVTT/Data/modules/artisan"
 };
