@@ -1,0 +1,1468 @@
+.artisan-manager {
+    min-width: 980px;
+    min-height: 760px;
+}
+
+.artisan-manager__layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    height: 100%;
+    min-height: 720px;
+}
+
+.artisan-manager__sidebar {
+    border-right: 1px solid var(--color-border-light-primary);
+    padding: 12px;
+    overflow-y: auto;
+}
+
+.artisan-manager__brand h2 {
+    margin: 0;
+    font-size: 22px;
+}
+
+.artisan-manager__brand p {
+    margin: 4px 0 16px;
+    opacity: 0.75;
+}
+
+.artisan-explorer {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.artisan-explorer__section {
+    border: 1px solid var(--color-border-light-primary);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.artisan-explorer__section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 6px 8px;
+    font-weight: bold;
+    background: rgba(0, 0, 0, 0.08);
+}
+
+.artisan-explorer__section-button {
+    border: none;
+    cursor: pointer;
+    text-align: left;
+}
+
+.artisan-explorer__section-button.is-selected {
+    outline: 1px solid var(--color-border-highlight);
+    background: rgba(255, 170, 0, 0.16);
+}
+
+.artisan-explorer__section-header span:first-child {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.artisan-explorer__count {
+    opacity: 0.7;
+}
+
+.artisan-explorer__items {
+    padding: 6px;
+}
+
+.artisan-explorer__empty {
+    margin: 0;
+    font-size: 12px;
+    opacity: 0.6;
+    font-style: italic;
+}
+
+.artisan-explorer__item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    text-align: left;
+    margin-bottom: 4px;
+}
+
+.artisan-explorer__item.is-selected {
+    outline: 1px solid var(--color-border-highlight);
+    background: rgba(255, 170, 0, 0.12);
+}
+
+.artisan-button,
+.artisan-small-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.artisan-small-button {
+    font-size: 12px;
+    padding: 3px 8px;
+    white-space: nowrap;
+}
+
+.artisan-icon-button {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.artisan-manager__content {
+    display: flex;
+    flex-direction: column;
+    padding: 12px;
+    overflow: hidden;
+}
+
+.artisan-manager__toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--color-border-light-primary);
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+}
+
+.artisan-manager__toolbar h3 {
+    margin: 0;
+}
+
+.artisan-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.artisan-manager__empty {
+    margin: auto;
+    text-align: center;
+    opacity: 0.75;
+}
+
+.artisan-manager__empty i {
+    font-size: 48px;
+    margin-bottom: 12px;
+}
+
+.artisan-inspector {
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.artisan-inspector__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px solid var(--color-border-light-primary);
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+}
+
+.artisan-inspector__header-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.artisan-inspector__header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.artisan-inspector__header img {
+    width: 52px;
+    height: 52px;
+    object-fit: contain;
+    border: 1px solid var(--color-border-light-primary);
+    border-radius: 4px;
+}
+
+.artisan-inspector__header h2 {
+    margin: 0;
+}
+
+.artisan-inspector__header p {
+    margin: 4px 0 0;
+    font-size: 11px;
+    opacity: 0.65;
+    word-break: break-all;
+}
+
+.artisan-inspector__form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.artisan-inspector__field {
+    border: 1px solid var(--color-border-light-primary);
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.artisan-inspector__field label {
+    display: block;
+    font-size: 11px;
+    opacity: 0.7;
+    margin-bottom: 4px;
+}
+
+.artisan-inspector__field input,
+.artisan-inspector__field select {
+    width: 100%;
+}
+
+.artisan-inspector__field input:disabled {
+    opacity: 0.7;
+}
+
+.artisan-component-panel,
+.artisan-foraging-panel {
+    border: 1px dashed var(--color-border-light-primary);
+    border-radius: 4px;
+    padding: 10px;
+    margin-top: 14px;
+    transition: background 120ms ease, border-color 120ms ease;
+}
+
+.artisan-component-panel.is-drag-over,
+.artisan-foraging-panel.is-drag-over {
+    border-color: var(--color-border-highlight);
+    background: rgba(255, 170, 0, 0.12);
+}
+
+.artisan-component-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px solid var(--color-border-light-primary);
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+}
+
+.artisan-component-panel__header h3 {
+    margin: 0;
+    font-size: 15px;
+}
+
+.artisan-component-panel__header span {
+    font-size: 11px;
+    opacity: 0.65;
+}
+
+.artisan-component-add {
+    display: grid;
+    grid-template-columns: 1fr 80px auto;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.artisan-component-add input {
+    width: 100%;
+}
+
+.artisan-component-panel__empty {
+    margin: 0;
+    font-size: 12px;
+    opacity: 0.65;
+    font-style: italic;
+}
+
+.artisan-component-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.artisan-component-row {
+    display: grid;
+    grid-template-columns: 36px 1fr 72px 32px 32px;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--color-border-light-primary);
+    border-radius: 4px;
+    padding: 6px;
+}
+
+.artisan-foraging-row {
+    grid-template-columns: 36px 1fr 72px 32px;
+}
+
+.artisan-component-row.is-missing {
+    border-color: var(--color-level-error);
+    background: rgba(120, 0, 0, 0.12);
+}
+
+.artisan-component-row img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    border-radius: 3px;
+}
+
+.artisan-component-row__main {
+    min-width: 0;
+    text-align: left;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+}
+
+.artisan-component-row__main:hover strong {
+    text-decoration: underline;
+}
+
+.artisan-component-row__main strong {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.artisan-component-row__main code {
+    display: block;
+    font-size: 10px;
+    opacity: 0.65;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.artisan-component-row__quantity,
+.artisan-component-row__quantity-static {
+    width: 72px;
+    text-align: center;
+    font-weight: bold;
+}
+
+.artisan-inspector__summary {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.artisan-inspector__summary div {
+    border: 1px solid var(--color-border-light-primary);
+    border-radius: 4px;
+    padding: 12px;
+    text-align: center;
+}
+
+.artisan-inspector__summary strong {
+    display: block;
+    font-size: 24px;
+}
+
+.artisan-inspector__summary span {
+    opacity: 0.75;
+}
+
+.artisan-foraging-layout {
+    display: grid;
+    grid-template-columns: 230px 1fr;
+    gap: 12px;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.artisan-foraging-list {
+    border-right: 1px solid var(--color-border-light-primary);
+    padding-right: 8px;
+    overflow-y: auto;
+}
+
+.artisan-foraging-content {
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.artisan-foraging-icon {
+    width: 52px;
+    height: 52px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-border-light-primary);
+    border-radius: 4px;
+    font-size: 28px;
+}
+
+#artisan-launcher-buttons,
+.artisan-launcher-buttons,
+#artisan-launcher,
+.artisan-launcher {
+    position: fixed !important;
+    left: 12px !important;
+    bottom: 12px !important;
+    z-index: 100000 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    pointer-events: auto !important;
+    width: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+#artisan-launcher button,
+.artisan-launcher button,
+#artisan-launcher-buttons button,
+.artisan-launcher-buttons button,
+.artisan-launcher-button {
+    width: auto !important;
+    min-width: 110px !important;
+    max-width: 180px !important;
+    height: 30px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    margin: 0 !important;
+    padding: 4px 10px !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+}
+
+/* COMMIT 0050 - Launcher fisso fuori dal layout di Foundry */
+#artisan-launcher-button.artisan-launcher-button,
+#artisan-foraging-button.artisan-launcher-button {
+    position: fixed !important;
+    left: 12px !important;
+    right: auto !important;
+    z-index: 100000 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    min-width: 110px !important;
+    max-width: 180px !important;
+    width: auto !important;
+    height: 30px !important;
+    margin: 0 !important;
+    padding: 4px 10px !important;
+    border: 1px solid var(--color-border-highlight) !important;
+    border-radius: 4px !important;
+    background: rgba(20, 20, 20, 0.92) !important;
+    color: #f0f0e0 !important;
+    font-size: 13px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    cursor: pointer !important;
+    box-shadow: 0 0 8px rgba(0, 0, 0, 0.45) !important;
+    float: none !important;
+    clear: none !important;
+    pointer-events: auto !important;
+}
+
+#artisan-launcher-button.artisan-launcher-button {
+    bottom: 12px !important;
+}
+
+#artisan-foraging-button.artisan-launcher-button {
+    bottom: 52px !important;
+    border-color: rgba(90, 180, 90, 0.95) !important;
+}
+
+#artisan-launcher-button.artisan-launcher-button:hover {
+    background: rgba(60, 45, 20, 0.98) !important;
+}
+
+#artisan-foraging-button.artisan-launcher-button:hover {
+    background: rgba(25, 70, 25, 0.98) !important;
+}
+
+
+/* COMMIT 0051 - Pulsante cancellazione lista Foraging */
+.artisan-danger-button {
+    border-color: rgba(180, 60, 60, 0.95) !important;
+    color: #f5d0d0 !important;
+}
+
+.artisan-danger-button:hover {
+    background: rgba(100, 20, 20, 0.95) !important;
+}
+
+.artisan-foraging-resource-add {
+    grid-template-columns: 1fr 72px 72px 72px auto;
+}
+
+.artisan-foraging-resource-row {
+    grid-template-columns: 36px 1fr 80px 90px 32px;
+}
+
+.artisan-foraging-meta {
+    font-size: 12px;
+    font-weight: bold;
+    white-space: nowrap;
+    opacity: 0.85;
+}
+
+.artisan-foraging-resource-row {
+    grid-template-columns: 36px 1fr 78px 78px 78px 32px;
+}
+
+.artisan-foraging-edit-field {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2px;
+    min-width: 0;
+    font-size: 10px;
+    font-weight: bold;
+    opacity: 0.9;
+}
+
+.artisan-foraging-edit-field span {
+    text-align: center;
+    opacity: 0.75;
+}
+
+.artisan-foraging-edit-field input {
+    width: 72px;
+    text-align: center;
+}
+
+.artisan-inline-note {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 8px;
+    opacity: 0.85;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+/* Commit 0069 - Scheda professioni PG */
+.artisan-professions-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.artisan-profession-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.artisan-profession-card {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) 110px 140px minmax(180px, 260px);
+    gap: 10px;
+    align-items: center;
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.16);
+}
+
+.artisan-profession-card__main h3 {
+    margin: 0 0 4px 0;
+    font-size: 15px;
+}
+
+.artisan-profession-card__main p {
+    margin: 0;
+    opacity: 0.8;
+    font-size: 12px;
+}
+
+.artisan-profession-card label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+}
+
+.artisan-profession-card input {
+    width: 100%;
+}
+
+.artisan-profession-progress {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.artisan-profession-progress__bar {
+    width: 100%;
+    height: 8px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.artisan-profession-progress__bar span {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.42);
+}
+
+.artisan-profession-progress small {
+    opacity: 0.8;
+    font-size: 11px;
+}
+
+@media (max-width: 900px) {
+    .artisan-profession-card {
+        grid-template-columns: 1fr 90px 120px;
+    }
+
+    .artisan-profession-progress {
+        grid-column: 1 / -1;
+    }
+}
+
+/* Commit 0071 - Harvest base */
+.artisan-harvest-panel {
+    border: 1px solid var(--color-border-light-primary);
+    border-radius: 4px;
+    padding: 10px;
+    margin-top: 12px;
+}
+
+.artisan-harvest-panel.is-drag-over {
+    outline: 2px dashed var(--color-border-highlight);
+    background: rgba(255, 170, 0, 0.08);
+}
+
+.artisan-harvest-layout {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 12px;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.artisan-harvest-list {
+    border-right: 1px solid var(--color-border-light-primary);
+    padding-right: 8px;
+    overflow-y: auto;
+}
+
+.artisan-harvest-content {
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.artisan-harvest-icon {
+    font-size: 42px;
+    opacity: 0.8;
+}
+
+.artisan-harvest-resource-add {
+    grid-template-columns: minmax(180px, 1fr) 90px 70px 70px auto;
+}
+
+.artisan-harvest-row {
+    min-height: 44px;
+}
+
+.artisan-harvest-resource-row {
+    grid-template-columns: 36px minmax(180px, 1fr) 80px 70px 70px 32px;
+}
+
+.artisan-harvest-edit-field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 10px;
+    opacity: 0.9;
+}
+
+.artisan-harvest-edit-field span {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.artisan-harvest-edit-field input {
+    width: 100%;
+}
+
+
+.artisan-hidden-file-input {
+    display: none !important;
+}
+
+/* Commit 0077 - Ricerca e filtri ricette */
+.artisan-filter-panel {
+    margin: 0 0 12px 0;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.artisan-filter-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.artisan-filter-panel__grid {
+    display: grid;
+    grid-template-columns: minmax(180px, 1.4fr) repeat(3, minmax(130px, 1fr)) auto;
+    gap: 8px;
+    align-items: end;
+}
+
+.artisan-filter-panel__grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+}
+
+.artisan-filter-panel__grid input,
+.artisan-filter-panel__grid select {
+    width: 100%;
+}
+
+@media (max-width: 900px) {
+    .artisan-filter-panel__grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.artisan-harvest-required-tool-field {
+    min-width: 180px;
+}
+
+.artisan-harvest-required-tool-field input {
+    min-width: 160px;
+}
+
+.artisan-harvest-required-tool-field small {
+    display: block;
+    opacity: 0.75;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Commit 0085 - UI finale Artisan */
+.artisan-manager {
+    min-width: 1040px;
+    min-height: 780px;
+}
+
+.artisan-manager__layout {
+    grid-template-columns: 250px minmax(0, 1fr);
+    background: rgba(0, 0, 0, 0.08);
+}
+
+.artisan-manager__sidebar {
+    background: rgba(0, 0, 0, 0.14);
+}
+
+.artisan-manager__brand {
+    padding: 4px 2px 10px;
+    border-bottom: 1px solid var(--color-border-light-primary);
+    margin-bottom: 10px;
+}
+
+.artisan-explorer__section {
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.10);
+}
+
+.artisan-explorer__section-header {
+    min-height: 34px;
+    padding: 7px 9px;
+}
+
+.artisan-explorer__section-button.is-selected,
+.artisan-explorer__item.is-selected {
+    border-color: var(--color-border-highlight);
+    box-shadow: inset 3px 0 0 var(--color-border-highlight);
+}
+
+.artisan-explorer__item {
+    min-height: 30px;
+    padding: 5px 7px;
+    border-radius: 5px;
+}
+
+.artisan-manager__content {
+    gap: 10px;
+}
+
+.artisan-manager__toolbar {
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 0 12px;
+    margin-bottom: 6px;
+}
+
+.artisan-manager__toolbar h3 {
+    flex: 1 1 auto;
+    font-size: 20px;
+}
+
+.artisan-toolbar-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.artisan-button,
+.artisan-small-button,
+.artisan-icon-button {
+    border-radius: 6px;
+}
+
+.artisan-button,
+.artisan-small-button {
+    min-height: 28px;
+}
+
+.artisan-inspector,
+.artisan-foraging-content,
+.artisan-harvest-content {
+    scrollbar-width: thin;
+}
+
+.artisan-inspector__header,
+.artisan-filter-panel,
+.artisan-component-panel,
+.artisan-foraging-panel,
+.artisan-harvest-panel,
+.artisan-profession-card {
+    border-radius: 8px;
+}
+
+.artisan-inspector__header {
+    background: rgba(0, 0, 0, 0.10);
+    padding: 10px;
+}
+
+.artisan-inspector__form {
+    grid-template-columns: repeat(2, minmax(240px, 1fr));
+}
+
+.artisan-inspector__field,
+.artisan-filter-panel {
+    background: rgba(0, 0, 0, 0.10);
+}
+
+.artisan-component-row {
+    border-radius: 7px;
+    background: rgba(0, 0, 0, 0.08);
+}
+
+.artisan-foraging-layout,
+.artisan-harvest-layout {
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 14px;
+}
+
+.artisan-foraging-list,
+.artisan-harvest-list {
+    padding: 8px 10px 8px 0;
+}
+
+.artisan-filter-panel__grid {
+    grid-template-columns: minmax(190px, 1.5fr) repeat(3, minmax(135px, 1fr)) auto;
+}
+
+.artisan-profession-card {
+    grid-template-columns: minmax(240px, 1fr) 110px 150px minmax(200px, 280px);
+}
+
+@media (max-width: 1100px) {
+    .artisan-manager {
+        min-width: 900px;
+    }
+
+    .artisan-manager__layout {
+        grid-template-columns: 220px minmax(0, 1fr);
+    }
+
+    .artisan-filter-panel__grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .artisan-inspector__form {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Commit 0087 - Registro attività */
+.artisan-activity-log {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 8px 0;
+}
+
+.artisan-activity-entry {
+    display: grid;
+    grid-template-columns: 38px 1fr;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.18);
+}
+
+.artisan-activity-entry__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.artisan-activity-entry__body header {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+
+.artisan-activity-entry__body header span {
+    opacity: 0.72;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.artisan-activity-entry__body p {
+    margin: 0 0 4px;
+}
+
+.artisan-activity-entry__body small {
+    opacity: 0.75;
+}
+
+.artisan-button--danger {
+    border-color: rgba(180, 40, 40, 0.75) !important;
+}
+
+/* Commit 0088 - Impostazioni modulo */
+.artisan-settings-panel {
+    max-width: 860px;
+}
+
+.artisan-settings-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.artisan-setting-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.12);
+}
+
+.artisan-setting-row input[type="checkbox"] {
+    margin-top: 3px;
+}
+
+.artisan-setting-row__content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.artisan-setting-row__content small {
+    opacity: 0.78;
+    line-height: 1.35;
+}
+
+/* Commit 0088.1 - Fix layout Harvest dopo strumenti richiesti */
+.artisan-harvest-content {
+    min-width: 0;
+    overflow: auto;
+}
+
+.artisan-harvest-panel {
+    overflow: visible;
+}
+
+.artisan-harvest-resource-add {
+    display: grid;
+    grid-template-columns: minmax(180px, 1.4fr) minmax(190px, 1.4fr) 115px 88px 70px 70px auto;
+    gap: 8px;
+    align-items: end;
+    min-width: 780px;
+}
+
+.artisan-harvest-resource-add input,
+.artisan-harvest-resource-add select,
+.artisan-harvest-resource-add button {
+    min-width: 0;
+    position: relative;
+    z-index: 1;
+}
+
+.artisan-harvest-row {
+    position: relative;
+}
+
+.artisan-harvest-resource-row {
+    display: grid;
+    grid-template-columns: 40px minmax(140px, 1fr) 110px 78px 66px 66px minmax(180px, 250px) 34px;
+    gap: 8px;
+    align-items: end;
+    min-width: 820px;
+}
+
+.artisan-harvest-resource-row .artisan-component-row__main {
+    align-self: center;
+}
+
+.artisan-harvest-edit-field {
+    min-width: 0;
+}
+
+.artisan-harvest-edit-field select,
+.artisan-harvest-edit-field input {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.artisan-harvest-required-tool-field {
+    width: 100%;
+    min-width: 0;
+}
+
+.artisan-harvest-required-tool-field small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.artisan-harvest-row .artisan-icon-button {
+    justify-self: end;
+    align-self: center;
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    position: relative;
+    z-index: 2;
+    pointer-events: auto;
+}
+
+.artisan-harvest-row .artisan-icon-button i {
+    pointer-events: none;
+}
+
+.artisan-harvest-panel .artisan-component-list {
+    overflow-x: auto;
+    padding-bottom: 4px;
+}
+
+/* Commit 0089 - Stato ricette per PG selezionato */
+.artisan-explorer__item {
+    align-items: stretch;
+    gap: 6px;
+}
+
+.artisan-explorer__item-main {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.artisan-explorer__item-main span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.artisan-recipe-status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border-radius: 999px;
+    border: 1px solid rgba(0, 0, 0, 0.18);
+    padding: 2px 7px;
+    font-size: 11px;
+    line-height: 1.2;
+    white-space: nowrap;
+    flex: 0 0 auto;
+    background: rgba(255, 255, 255, 0.55);
+}
+
+.artisan-recipe-status-badge.is-available {
+    background: rgba(95, 135, 82, 0.18);
+    border-color: rgba(70, 105, 60, 0.45);
+}
+
+.artisan-recipe-status-badge.is-locked {
+    background: rgba(150, 60, 45, 0.18);
+    border-color: rgba(130, 45, 35, 0.45);
+}
+
+.artisan-recipe-status-badge.is-unknown {
+    background: rgba(110, 110, 110, 0.14);
+    border-color: rgba(80, 80, 80, 0.35);
+}
+
+.artisan-explorer__item.is-locked {
+    opacity: 0.72;
+}
+
+.artisan-explorer__item.is-locked span:not(.artisan-recipe-status-badge) {
+    color: rgba(30, 30, 30, 0.72);
+}
+
+.artisan-recipe-requirement-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 10px 0 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.18);
+    background: rgba(255, 255, 255, 0.35);
+}
+
+.artisan-recipe-requirement-card p {
+    margin: 4px 0 0;
+    opacity: 0.82;
+}
+
+.artisan-recipe-requirement-card.is-available {
+    background: rgba(95, 135, 82, 0.13);
+}
+
+.artisan-recipe-requirement-card.is-locked {
+    background: rgba(150, 60, 45, 0.13);
+}
+
+.artisan-recipe-requirement-card.is-unknown {
+    background: rgba(110, 110, 110, 0.10);
+}
+
+.artisan-small-button.is-disabled,
+.artisan-small-button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+/* Commit 0089.1 - Harvest: layout verticale senza scroll orizzontale */
+.artisan-harvest-content {
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    min-width: 0 !important;
+}
+
+.artisan-harvest-panel {
+    overflow: visible !important;
+}
+
+.artisan-harvest-panel .artisan-component-list {
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+    padding-bottom: 0 !important;
+}
+
+.artisan-harvest-resource-add {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important;
+    gap: 8px !important;
+    align-items: end !important;
+    min-width: 0 !important;
+    width: 100% !important;
+}
+
+.artisan-harvest-resource-add input,
+.artisan-harvest-resource-add select,
+.artisan-harvest-resource-add button {
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+}
+
+.artisan-harvest-resource-add button {
+    justify-content: center !important;
+}
+
+.artisan-harvest-resource-row {
+    display: grid !important;
+    grid-template-columns: 44px minmax(0, 1fr) auto !important;
+    grid-template-areas:
+        "icon name remove"
+        "fields fields fields" !important;
+    gap: 8px 10px !important;
+    align-items: start !important;
+    min-width: 0 !important;
+    width: 100% !important;
+    padding: 10px !important;
+    box-sizing: border-box !important;
+}
+
+.artisan-harvest-resource-row > img {
+    grid-area: icon !important;
+    align-self: start !important;
+}
+
+.artisan-harvest-resource-row .artisan-component-row__main {
+    grid-area: name !important;
+    min-width: 0 !important;
+    align-self: center !important;
+}
+
+.artisan-harvest-resource-row .artisan-component-row__main strong,
+.artisan-harvest-resource-row .artisan-component-row__main code {
+    display: block !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    max-width: 100% !important;
+}
+
+.artisan-harvest-resource-row .artisan-icon-button {
+    grid-area: remove !important;
+    justify-self: end !important;
+    align-self: center !important;
+    width: 32px !important;
+    min-width: 32px !important;
+    height: 32px !important;
+    position: relative !important;
+    z-index: 2 !important;
+    pointer-events: auto !important;
+}
+
+.artisan-harvest-resource-row .artisan-harvest-edit-field {
+    min-width: 0 !important;
+}
+
+.artisan-harvest-resource-row .artisan-harvest-edit-field:nth-of-type(1),
+.artisan-harvest-resource-row .artisan-harvest-edit-field:nth-of-type(2),
+.artisan-harvest-resource-row .artisan-harvest-edit-field:nth-of-type(3),
+.artisan-harvest-resource-row .artisan-harvest-edit-field:nth-of-type(4),
+.artisan-harvest-resource-row .artisan-harvest-required-tool-field {
+    grid-area: auto !important;
+}
+
+.artisan-harvest-resource-row {
+    grid-auto-flow: row !important;
+}
+
+.artisan-harvest-resource-row > .artisan-harvest-edit-field {
+    grid-column: auto !important;
+}
+
+.artisan-harvest-resource-row > .artisan-harvest-edit-field:nth-of-type(1) {
+    grid-column: 1 / 2 !important;
+}
+
+.artisan-harvest-resource-row > .artisan-harvest-edit-field:nth-of-type(2) {
+    grid-column: 2 / 3 !important;
+}
+
+.artisan-harvest-resource-row > .artisan-harvest-edit-field:nth-of-type(3) {
+    grid-column: 3 / 4 !important;
+}
+
+.artisan-harvest-resource-row > .artisan-harvest-edit-field:nth-of-type(4) {
+    grid-column: 1 / 2 !important;
+}
+
+.artisan-harvest-resource-row > .artisan-harvest-required-tool-field {
+    grid-column: 2 / 4 !important;
+}
+
+.artisan-harvest-resource-row > .artisan-harvest-edit-field:nth-of-type(1),
+.artisan-harvest-resource-row > .artisan-harvest-edit-field:nth-of-type(2),
+.artisan-harvest-resource-row > .artisan-harvest-edit-field:nth-of-type(3),
+.artisan-harvest-resource-row > .artisan-harvest-edit-field:nth-of-type(4),
+.artisan-harvest-resource-row > .artisan-harvest-required-tool-field {
+    margin-top: 4px !important;
+}
+
+@media (max-width: 1050px) {
+    .artisan-harvest-layout {
+        grid-template-columns: 180px minmax(0, 1fr) !important;
+    }
+
+    .artisan-harvest-resource-row {
+        grid-template-columns: 40px minmax(0, 1fr) auto !important;
+    }
+
+    .artisan-harvest-resource-row > .artisan-harvest-edit-field,
+    .artisan-harvest-resource-row > .artisan-harvest-required-tool-field {
+        grid-column: 1 / -1 !important;
+    }
+}
+
+/* Commit 0090 - Scheda rapida professioni PG */
+.artisan-profession-summary {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.artisan-profession-summary__card {
+    border: 1px solid var(--color-border-light-primary);
+    border-radius: 6px;
+    padding: 10px;
+    background: rgba(0, 0, 0, 0.06);
+    min-width: 0;
+}
+
+.artisan-profession-summary__card strong {
+    display: block;
+    font-size: 18px;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.artisan-profession-summary__card span {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    opacity: 0.72;
+}
+
+.artisan-profession-quick-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.artisan-danger-button {
+    border-color: rgba(160, 40, 40, 0.65);
+}
+
+@media (max-width: 1100px) {
+    .artisan-profession-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+/* Commit 0091 - Pacchetti predefiniti */
+.artisan-preset-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.artisan-preset-panel__intro {
+    padding: 14px 16px;
+    border: 1px solid rgba(0, 0, 0, 0.18);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.32);
+}
+
+.artisan-preset-panel__intro h2 {
+    margin: 0 0 6px 0;
+}
+
+.artisan-preset-panel__intro p {
+    margin: 0;
+}
+
+.artisan-preset-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 12px;
+}
+
+.artisan-preset-card {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid rgba(0, 0, 0, 0.18);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.35);
+}
+
+.artisan-preset-card__icon {
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.12);
+    font-size: 20px;
+}
+
+.artisan-preset-card__body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+}
+
+.artisan-preset-card__body header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.artisan-preset-card__body h3 {
+    margin: 0;
+}
+
+.artisan-preset-card__body header span {
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0.75;
+}
+
+.artisan-preset-card__body p,
+.artisan-preset-card__body strong {
+    margin: 0;
+}
+
+.artisan-checkbox-line {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    line-height: 1.35;
+}
+
+.artisan-checkbox-line input[type="checkbox"] {
+    flex: 0 0 auto;
+    margin-top: 2px;
+}

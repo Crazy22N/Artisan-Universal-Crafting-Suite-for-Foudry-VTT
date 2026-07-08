@@ -1,0 +1,1384 @@
+<div class="artisan-manager__layout">
+
+    <aside class="artisan-manager__sidebar">
+
+        <div class="artisan-manager__brand">
+            <h2>{{title}}</h2>
+            <p>{{subtitle}}</p>
+        </div>
+
+        <nav class="artisan-explorer">
+            {{#each explorer}}
+                <section class="artisan-explorer__section" data-section="{{id}}">
+
+                    <button
+                        type="button"
+                        class="artisan-explorer__section-header artisan-explorer__section-button {{#if (eq ../selectedSectionId id)}}is-selected{{/if}}"
+                        data-artisan-select-section
+                        data-section-id="{{id}}"
+                    >
+                        <span>
+                            <i class="{{icon}}"></i>
+                            {{label}}
+                        </span>
+
+                        <span class="artisan-explorer__count">{{count}}</span>
+                    </button>
+
+                    <div class="artisan-explorer__items">
+                        {{#if items.length}}
+                            {{#each items}}
+                                <button
+                                    type="button"
+                                    class="artisan-explorer__item {{#if selected}}is-selected{{/if}} {{recipeStatusClass}}"
+                                    title="{{recipeStatusTitle}}"
+                                    data-artisan-select-recipe
+                                    data-recipe-id="{{id}}"
+                                >
+                                    <span class="artisan-explorer__item-main">
+                                        {{#if icon}}<i class="{{icon}}"></i>{{/if}}
+                                        <span>{{label}}</span>
+                                    </span>
+                                    {{#if recipeStatusLabel}}
+                                        <span class="artisan-recipe-status-badge {{recipeStatusClass}}">
+                                            <i class="{{recipeStatusIcon}}"></i>
+                                            {{recipeStatusLabel}}
+                                        </span>
+                                    {{/if}}
+                                </button>
+                            {{/each}}
+                        {{else}}
+                            <p class="artisan-explorer__empty">Nessun elemento</p>
+                        {{/if}}
+                    </div>
+
+                </section>
+            {{/each}}
+        </nav>
+
+    </aside>
+
+    <main class="artisan-manager__content">
+
+        {{#if isRecipesSection}}
+
+            <header class="artisan-manager__toolbar">
+                <h3>Ricette</h3>
+
+                <div class="artisan-toolbar-actions">
+                    <button type="button" class="artisan-button" data-artisan-new-recipe>
+                        <i class="fa-solid fa-plus"></i>
+                        Nuova Ricetta
+                    </button>
+
+                    <button type="button" class="artisan-button" data-artisan-import-recipes>
+                        <i class="fa-solid fa-file-import"></i>
+                        Importa ricette
+                    </button>
+
+                    <button type="button" class="artisan-button" data-artisan-export-all-recipes>
+                        <i class="fa-solid fa-file-export"></i>
+                        Esporta tutte
+                    </button>
+
+                    <button type="button" class="artisan-button" data-artisan-export-backup>
+                        <i class="fa-solid fa-download"></i>
+                        Backup Artisan
+                    </button>
+
+                    <button type="button" class="artisan-button" data-artisan-import-backup>
+                        <i class="fa-solid fa-upload"></i>
+                        Ripristina backup
+                    </button>
+                </div>
+
+                <input
+                    type="file"
+                    accept="application/json,.json"
+                    class="artisan-hidden-file-input"
+                    data-artisan-import-recipes-file
+                >
+
+                <input
+                    type="file"
+                    accept="application/json,.json"
+                    class="artisan-hidden-file-input"
+                    data-artisan-import-backup-file
+                >
+            </header>
+
+            <section class="artisan-filter-panel">
+                <div class="artisan-filter-panel__header">
+                    <strong>Ricerca e filtri ricette</strong>
+                    <span>{{recipeCountFiltered}} / {{recipeCountTotal}}</span>
+                </div>
+
+                <div class="artisan-filter-panel__grid">
+                    <label>
+                        <span>Nome / categoria</span>
+                        <input
+                            type="search"
+                            value="{{recipeFilters.search}}"
+                            placeholder="Cerca ricetta..."
+                            data-artisan-recipe-filter
+                            data-filter="search"
+                        >
+                    </label>
+
+                    <label>
+                        <span>Professione</span>
+                        <select data-artisan-recipe-filter data-filter="profession">
+                            <option value="all">Tutte</option>
+                            {{#each recipeFilterProfessionOptions}}
+                                <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+                            {{/each}}
+                        </select>
+                    </label>
+
+                    <label>
+                        <span>Categoria</span>
+                        <select data-artisan-recipe-filter data-filter="category">
+                            <option value="all">Tutte</option>
+                            {{#each recipeFilterCategoryOptions}}
+                                <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+                            {{/each}}
+                        </select>
+                    </label>
+
+                    <label>
+                        <span>Livello richiesto</span>
+                        <select data-artisan-recipe-filter data-filter="level">
+                            <option value="all">Tutti</option>
+                            {{#each recipeFilterLevelOptions}}
+                                <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+                            {{/each}}
+                        </select>
+                    </label>
+
+                    <button type="button" class="artisan-small-button" data-artisan-reset-recipe-filters>
+                        <i class="fa-solid fa-filter-circle-xmark"></i>
+                        Pulisci filtri
+                    </button>
+                </div>
+            </section>
+
+            {{#if selectedRecipe}}
+
+                <section class="artisan-inspector">
+
+                    <header class="artisan-inspector__header">
+
+                        <div class="artisan-inspector__header-main">
+                            <img src="{{selectedRecipe.img}}" alt="{{selectedRecipe.name}}">
+                            <div>
+                                <h2>{{selectedRecipe.name}}</h2>
+                                <p>{{selectedRecipe.uuid}}</p>
+                            </div>
+                        </div>
+
+                        <div class="artisan-inspector__header-actions">
+                            <button
+                                type="button"
+                                class="artisan-small-button {{#if selectedRecipe.recipeLocked}}is-disabled{{/if}}"
+                                {{#if selectedRecipe.recipeLocked}}disabled{{/if}}
+                                data-artisan-roll-crafting
+                                data-recipe-id="{{selectedRecipe.id}}"
+                            >
+                                <i class="fa-solid fa-dice-d20"></i>
+                                Esegui Crafting
+                            </button>
+
+                            <button
+                                type="button"
+                                class="artisan-small-button"
+                                data-artisan-preview-crafting
+                                data-recipe-id="{{selectedRecipe.id}}"
+                            >
+                                <i class="fa-solid fa-eye"></i>
+                                Anteprima
+                            </button>
+
+                            <button
+                                type="button"
+                                class="artisan-small-button"
+                                data-artisan-validate-recipe
+                                data-recipe-id="{{selectedRecipe.id}}"
+                            >
+                                <i class="fa-solid fa-check"></i>
+                                Verifica
+                            </button>
+
+                            <button
+                                type="button"
+                                class="artisan-small-button"
+                                data-artisan-export-recipe
+                                data-recipe-id="{{selectedRecipe.id}}"
+                            >
+                                <i class="fa-solid fa-file-export"></i>
+                                Esporta ricetta
+                            </button>
+
+                            <button
+                                type="button"
+                                class="artisan-small-button"
+                                data-artisan-duplicate-recipe
+                                data-recipe-id="{{selectedRecipe.id}}"
+                            >
+                                <i class="fa-solid fa-copy"></i>
+                                Duplica ricetta
+                            </button>
+                        </div>
+
+                    </header>
+
+                    <section class="artisan-recipe-requirement-card {{selectedRecipe.recipeStatusClass}}">
+                        <div>
+                            <strong>Disponibilità per il PG selezionato</strong>
+                            <p>{{selectedRecipe.recipeStatusTitle}}</p>
+                        </div>
+                        <span class="artisan-recipe-status-badge {{selectedRecipe.recipeStatusClass}}">
+                            <i class="{{selectedRecipe.recipeStatusIcon}}"></i>
+                            {{selectedRecipe.recipeStatusLabel}}
+                        </span>
+                    </section>
+
+                    <div class="artisan-inspector__form">
+
+                        <div class="artisan-inspector__field">
+                            <label>Nome ricetta</label>
+                            <input
+                                type="text"
+                                value="{{selectedRecipe.name}}"
+                                data-artisan-field="name"
+                                data-recipe-id="{{selectedRecipe.id}}"
+                            >
+                        </div>
+
+                        <div class="artisan-inspector__field">
+                            <label>Tipo Item</label>
+                            <input
+                                type="text"
+                                value="{{selectedRecipe.type}}"
+                                disabled
+                            >
+                        </div>
+
+                        <div class="artisan-inspector__field">
+                            <label>Categoria</label>
+                            <input
+                                type="text"
+                                value="{{selectedRecipe.category}}"
+                                placeholder="Es. Alchimia, Cucina, Forgiatura"
+                                data-artisan-field="category"
+                                data-recipe-id="{{selectedRecipe.id}}"
+                            >
+                        </div>
+
+                        <div class="artisan-inspector__field">
+                            <label>Profilo / Professione</label>
+                            <select
+                                data-artisan-field="profile"
+                                data-recipe-id="{{selectedRecipe.id}}"
+                            >
+                                {{#each professionOptions}}
+                                    <option value="{{id}}" title="{{description}}">{{label}} — {{skill}}</option>
+                                {{/each}}
+                            </select>
+                            <input type="hidden" value="{{selectedRecipe.profile}}" data-artisan-recipe-profession-current>
+                        </div>
+
+                        <div class="artisan-inspector__field">
+                            <label>Livello professione richiesto</label>
+                            <input
+                                type="number"
+                                value="{{selectedRecipe.professionLevel}}"
+                                min="0"
+                                max="5"
+                                step="1"
+                                data-artisan-field="professionLevel"
+                                data-recipe-id="{{selectedRecipe.id}}"
+                            >
+                            <small>Requisito della ricetta: il PG deve avere almeno questo livello nella professione selezionata.</small>
+                        </div>
+
+                        <div class="artisan-inspector__field">
+                            <label>Tempo (minuti)</label>
+                            <input
+                                type="number"
+                                value="{{selectedRecipe.craftingTime}}"
+                                min="0"
+                                step="1"
+                                data-artisan-field="craftingTime"
+                                data-recipe-id="{{selectedRecipe.id}}"
+                            >
+                        </div>
+
+                        <div class="artisan-inspector__field">
+                            <label>Abilità</label>
+                            <input
+                                type="text"
+                                value="{{selectedRecipe.skill}}"
+                                placeholder="Es. survival, arcana, nature"
+                                data-artisan-field="skill"
+                                data-recipe-id="{{selectedRecipe.id}}"
+                            >
+                        </div>
+
+                        <div class="artisan-inspector__field">
+                            <label>CD</label>
+                            <input
+                                type="number"
+                                value="{{selectedRecipe.dc}}"
+                                min="0"
+                                step="1"
+                                data-artisan-field="dc"
+                                data-recipe-id="{{selectedRecipe.id}}"
+                            >
+                        </div>
+
+                    </div>
+
+                    <section
+                        class="artisan-component-panel"
+                        data-artisan-drop-zone
+                        data-recipe-id="{{selectedRecipe.id}}"
+                        data-collection="ingredients"
+                    >
+
+                        <header class="artisan-component-panel__header">
+                            <h3>Ingredienti</h3>
+                            <span>Trascina qui un Item o usa UUID manuale</span>
+                        </header>
+
+                        <div class="artisan-component-add">
+                            <input type="text" placeholder="UUID Item o Compendium" data-artisan-component-uuid>
+                            <input type="number" min="1" step="1" value="1" data-artisan-component-quantity>
+                            <button type="button" class="artisan-small-button" data-artisan-add-component data-recipe-id="{{selectedRecipe.id}}" data-collection="ingredients">
+                                <i class="fa-solid fa-plus"></i>
+                                Aggiungi
+                            </button>
+                        </div>
+
+                        {{#if selectedRecipe.ingredients.length}}
+                            <div class="artisan-component-list">
+                                {{#each selectedRecipe.ingredients}}
+                                    <div class="artisan-component-row {{#unless found}}is-missing{{/unless}}">
+                                        <img src="{{img}}" alt="{{name}}">
+                                        <button type="button" class="artisan-component-row__main" data-artisan-open-component data-uuid="{{uuid}}" title="Apri Item">
+                                            <strong>{{name}}</strong>
+                                            <code>{{uuid}}</code>
+                                        </button>
+                                        <input type="number" min="1" step="1" value="{{quantity}}" class="artisan-component-row__quantity" data-artisan-component-row-quantity data-recipe-id="{{recipeId}}" data-collection="{{collection}}" data-index="{{index}}">
+                                        <button type="button" class="artisan-icon-button" data-artisan-open-component data-uuid="{{uuid}}" title="Apri">
+                                            <i class="fa-solid fa-up-right-from-square"></i>
+                                        </button>
+                                        <button type="button" class="artisan-icon-button" data-artisan-remove-component data-recipe-id="{{recipeId}}" data-collection="{{collection}}" data-index="{{index}}" title="Rimuovi">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                    </div>
+                                {{/each}}
+                            </div>
+                        {{else}}
+                            <p class="artisan-component-panel__empty">Nessun ingrediente inserito.</p>
+                        {{/if}}
+
+                    </section>
+
+                    <section class="artisan-component-panel" data-artisan-drop-zone data-recipe-id="{{selectedRecipe.id}}" data-collection="tools">
+                        <header class="artisan-component-panel__header">
+                            <h3>Strumenti richiesti</h3>
+                            <span>Trascina qui un Item o usa UUID manuale</span>
+                        </header>
+
+                        <div class="artisan-component-add">
+                            <input type="text" placeholder="UUID Item o Compendium" data-artisan-component-uuid>
+                            <input type="number" min="1" step="1" value="1" data-artisan-component-quantity>
+                            <button type="button" class="artisan-small-button" data-artisan-add-component data-recipe-id="{{selectedRecipe.id}}" data-collection="tools">
+                                <i class="fa-solid fa-plus"></i>
+                                Aggiungi
+                            </button>
+                        </div>
+
+                        {{#if selectedRecipe.tools.length}}
+                            <div class="artisan-component-list">
+                                {{#each selectedRecipe.tools}}
+                                    <div class="artisan-component-row {{#unless found}}is-missing{{/unless}}">
+                                        <img src="{{img}}" alt="{{name}}">
+                                        <button type="button" class="artisan-component-row__main" data-artisan-open-component data-uuid="{{uuid}}" title="Apri Item">
+                                            <strong>{{name}}</strong>
+                                            <code>{{uuid}}</code>
+                                        </button>
+                                        <input type="number" min="1" step="1" value="{{quantity}}" class="artisan-component-row__quantity" data-artisan-component-row-quantity data-recipe-id="{{recipeId}}" data-collection="{{collection}}" data-index="{{index}}">
+                                        <button type="button" class="artisan-icon-button" data-artisan-open-component data-uuid="{{uuid}}" title="Apri">
+                                            <i class="fa-solid fa-up-right-from-square"></i>
+                                        </button>
+                                        <button type="button" class="artisan-icon-button" data-artisan-remove-component data-recipe-id="{{recipeId}}" data-collection="{{collection}}" data-index="{{index}}" title="Rimuovi">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                    </div>
+                                {{/each}}
+                            </div>
+                        {{else}}
+                            <p class="artisan-component-panel__empty">Nessuno strumento richiesto.</p>
+                        {{/if}}
+                    </section>
+
+                    <section class="artisan-component-panel" data-artisan-drop-zone data-recipe-id="{{selectedRecipe.id}}" data-collection="outputs">
+                        <header class="artisan-component-panel__header">
+                            <h3>Output</h3>
+                            <span>Trascina qui un Item o usa UUID manuale</span>
+                        </header>
+
+                        <div class="artisan-component-add">
+                            <input type="text" placeholder="UUID Item o Compendium" data-artisan-component-uuid>
+                            <input type="number" min="1" step="1" value="1" data-artisan-component-quantity>
+                            <button type="button" class="artisan-small-button" data-artisan-add-component data-recipe-id="{{selectedRecipe.id}}" data-collection="outputs">
+                                <i class="fa-solid fa-plus"></i>
+                                Aggiungi
+                            </button>
+                        </div>
+
+                        {{#if selectedRecipe.outputs.length}}
+                            <div class="artisan-component-list">
+                                {{#each selectedRecipe.outputs}}
+                                    <div class="artisan-component-row {{#unless found}}is-missing{{/unless}}">
+                                        <img src="{{img}}" alt="{{name}}">
+                                        <button type="button" class="artisan-component-row__main" data-artisan-open-component data-uuid="{{uuid}}" title="Apri Item">
+                                            <strong>{{name}}</strong>
+                                            <code>{{uuid}}</code>
+                                        </button>
+                                        <input type="number" min="1" step="1" value="{{quantity}}" class="artisan-component-row__quantity" data-artisan-component-row-quantity data-recipe-id="{{recipeId}}" data-collection="{{collection}}" data-index="{{index}}">
+                                        <button type="button" class="artisan-icon-button" data-artisan-open-component data-uuid="{{uuid}}" title="Apri">
+                                            <i class="fa-solid fa-up-right-from-square"></i>
+                                        </button>
+                                        <button type="button" class="artisan-icon-button" data-artisan-remove-component data-recipe-id="{{recipeId}}" data-collection="{{collection}}" data-index="{{index}}" title="Rimuovi">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                    </div>
+                                {{/each}}
+                            </div>
+                        {{else}}
+                            <p class="artisan-component-panel__empty">Nessun output inserito.</p>
+                        {{/if}}
+                    </section>
+
+                    <section class="artisan-inspector__summary">
+                        <div><strong>{{selectedRecipe.ingredientCount}}</strong><span>Ingredienti</span></div>
+                        <div><strong>{{selectedRecipe.toolCount}}</strong><span>Strumenti</span></div>
+                        <div><strong>{{selectedRecipe.outputCount}}</strong><span>Output</span></div>
+                    </section>
+
+                </section>
+
+            {{else}}
+
+                <section class="artisan-manager__empty">
+                    <i class="fa-solid fa-hammer"></i>
+                    <h3>Nessuna ricetta selezionata</h3>
+                    <p>Crea una nuova ricetta o selezionane una dall’elenco.</p>
+                </section>
+
+            {{/if}}
+
+        {{/if}}
+
+        {{#if isForagingSection}}
+
+            <header class="artisan-manager__toolbar">
+                <h3>Foraging</h3>
+
+                <div class="artisan-toolbar-actions">
+                    <button type="button" class="artisan-small-button" data-artisan-export-foraging>
+                        <i class="fa-solid fa-file-export"></i>
+                        Esporta liste
+                    </button>
+
+                    <button type="button" class="artisan-small-button" data-artisan-import-foraging>
+                        <i class="fa-solid fa-file-import"></i>
+                        Importa liste
+                    </button>
+
+                    <input type="file" accept="application/json,.json" data-artisan-import-foraging-file hidden>
+
+                    <button type="button" class="artisan-button" data-artisan-new-foraging-profile>
+                        <i class="fa-solid fa-plus"></i>
+                        Nuova lista
+                    </button>
+                </div>
+            </header>
+
+            <section class="artisan-foraging-layout">
+
+                <aside class="artisan-foraging-list">
+                    {{#if foragingProfiles.length}}
+                        {{#each foragingProfiles}}
+                            <button
+                                type="button"
+                                class="artisan-explorer__item {{#if selected}}is-selected{{/if}}"
+                                data-artisan-select-foraging-profile
+                                data-profile-id="{{id}}"
+                            >
+                                <i class="{{icon}}"></i>
+                                <span>{{label}}</span>
+                            </button>
+                        {{/each}}
+                    {{else}}
+                        <p class="artisan-component-panel__empty">Nessuna lista Foraging.</p>
+                    {{/if}}
+                </aside>
+
+                <main class="artisan-foraging-content">
+                    {{#if selectedForagingProfile}}
+
+                        <header class="artisan-inspector__header">
+                            <div class="artisan-inspector__header-main">
+                                <i class="fa-solid fa-leaf artisan-foraging-icon"></i>
+                                <div>
+                                    <h2>{{selectedForagingProfile.name}}</h2>
+                                    <p>{{selectedForagingProfile.id}}</p>
+                                </div>
+                            </div>
+
+                            <div class="artisan-inspector__header-actions">
+                                <button
+                                    type="button"
+                                    class="artisan-button"
+                                    data-artisan-start-foraging
+                                    data-profile-id="{{selectedForagingProfile.id}}"
+                                >
+                                    <i class="fa-solid fa-dice-d20"></i>
+                                    Avvia Foraging
+                                </button>
+
+                                <button
+                                    type="button"
+                                    class="artisan-small-button artisan-danger-button"
+                                    data-artisan-delete-foraging-profile
+                                    data-profile-id="{{selectedForagingProfile.id}}"
+                                >
+                                    <i class="fa-solid fa-trash"></i>
+                                    Cancella lista
+                                </button>
+                            </div>
+                        </header>
+
+                        <div class="artisan-inspector__form">
+                            <div class="artisan-inspector__field">
+                                <label>Nome lista</label>
+                                <input type="text" value="{{selectedForagingProfile.name}}" data-artisan-foraging-field="name" data-profile-id="{{selectedForagingProfile.id}}">
+                            </div>
+
+                            <div class="artisan-inspector__field">
+                                <label>Bioma</label>
+                                <select data-artisan-foraging-field="biome" data-profile-id="{{selectedForagingProfile.id}}">
+                                    <option value="foresta">Foresta</option>
+                                    <option value="montagna">Montagna</option>
+                                    <option value="palude">Palude</option>
+                                    <option value="costa">Costa</option>
+                                    <option value="caverna">Caverna</option>
+                                    <option value="deserto">Deserto</option>
+                                    <option value="artico">Artico</option>
+                                    <option value="urbano">Urbano</option>
+                                    <option value="pianura">Pianura</option>
+                                    <option value="collina">Collina</option>
+                                    <option value="fiume">Fiume / Lago</option>
+                                </select>
+                                <input type="hidden" value="{{selectedForagingProfile.biome}}" data-artisan-foraging-biome-current>
+                            </div>
+
+                            <div class="artisan-inspector__field">
+                                <label>Professione</label>
+                                <select data-artisan-foraging-field="profession" data-profile-id="{{selectedForagingProfile.id}}">
+                                    {{#each foragingProfessionOptions}}
+                                        <option value="{{id}}" title="{{description}}">{{label}} — {{skill}}</option>
+                                    {{/each}}
+                                </select>
+                                <input type="hidden" value="{{selectedForagingProfile.profession}}" data-artisan-foraging-profession-current>
+                            </div>
+
+                            <div class="artisan-inspector__field">
+                                <label>Professione del PG</label>
+                                {{#if selectedForagingActorProfession}}
+                                    <input type="text" value="{{selectedForagingActorName}} — livello {{selectedForagingActorProfession.level}}, XP {{selectedForagingActorProfession.xp}}, prossimo livello: {{selectedForagingActorProfession.xpToNextLevel}} XP, raccolta {{selectedForagingActorProfession.gatheringMultiplierLabel}}" disabled>
+                                    <small>Il livello viene letto dal PG selezionato. La lista Foraging non salva più un livello manuale.</small>
+                                {{else}}
+                                    <input type="text" value="Seleziona un token per leggere la professione dal PG" disabled>
+                                {{/if}}
+                            </div>
+
+                            <div class="artisan-inspector__field">
+                                <label>Abilità tiro</label>
+                                <input type="text" value="{{selectedForagingProfile.skill}}" placeholder="Es. survival, nature, perception" data-artisan-foraging-field="skill" data-profile-id="{{selectedForagingProfile.id}}">
+                            </div>
+
+                            <div class="artisan-inspector__field">
+                                <label>CD</label>
+                                <input type="number" value="{{selectedForagingProfile.dc}}" min="0" step="1" data-artisan-foraging-field="dc" data-profile-id="{{selectedForagingProfile.id}}">
+                            </div>
+
+                            <div class="artisan-inspector__field">
+                                <label>Tempo (minuti)</label>
+                                <input type="number" value="{{selectedForagingProfile.time}}" min="0" step="1" data-artisan-foraging-field="time" data-profile-id="{{selectedForagingProfile.id}}">
+                            </div>
+
+                            <div class="artisan-inspector__field">
+                                <label>Massimo risorse diverse</label>
+                                <input type="number" value="{{selectedForagingProfile.maxResources}}" min="1" step="1" data-artisan-foraging-field="maxResources" data-profile-id="{{selectedForagingProfile.id}}">
+                                <small>Limita quante risorse diverse possono uscire da una singola raccolta.</small>
+                            </div>
+                        </div>
+
+                        <section class="artisan-foraging-panel" data-artisan-foraging-drop-zone data-profile-id="{{selectedForagingProfile.id}}" data-collection="resources">
+                            <header class="artisan-component-panel__header">
+                                <h3>Risorse raccoglibili</h3>
+                                <span>Trascina Item da compendio o mondo</span>
+                            </header>
+
+                            <div class="artisan-component-add artisan-foraging-resource-add">
+                                <input type="text" placeholder="UUID risorsa" data-artisan-foraging-component-uuid>
+                                <input type="number" min="0.1" step="0.1" title="Peso importato dall'Item, modificabile" placeholder="Peso auto" data-artisan-foraging-component-weight>
+                                <input type="number" min="1" step="1" value="1" title="Quantità minima" placeholder="Min" data-artisan-foraging-component-min-quantity>
+                                <input type="number" min="1" step="1" value="1" title="Quantità massima" placeholder="Max" data-artisan-foraging-component-max-quantity>
+                                <button type="button" class="artisan-small-button" data-artisan-foraging-add-component data-profile-id="{{selectedForagingProfile.id}}" data-collection="resources">
+                                    <i class="fa-solid fa-plus"></i>
+                                    Aggiungi
+                                </button>
+                            </div>
+
+                            {{#if selectedForagingProfile.resources.length}}
+                                <div class="artisan-component-list">
+                                    {{#each selectedForagingProfile.resources}}
+                                        <div class="artisan-component-row artisan-foraging-row artisan-foraging-resource-row {{#unless found}}is-missing{{/unless}}">
+                                            <img src="{{img}}" alt="{{name}}">
+                                            <div class="artisan-component-row__main">
+                                                <strong>{{name}}</strong>
+                                                <code>{{uuid}}</code>
+                                            </div>
+                                            <label class="artisan-foraging-edit-field" title="Peso / probabilità di estrazione">
+                                                <span>Peso</span>
+                                                <input
+                                                    type="number"
+                                                    min="0.1"
+                                                    step="0.1"
+                                                    value="{{weight}}"
+                                                    data-artisan-foraging-component-field="weight"
+                                                    data-profile-id="{{profileId}}"
+                                                    data-collection="{{collection}}"
+                                                    data-index="{{index}}"
+                                                >
+                                            </label>
+
+                                            <label class="artisan-foraging-edit-field" title="Quantità minima raccolta">
+                                                <span>Min</span>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    step="1"
+                                                    value="{{minQuantity}}"
+                                                    data-artisan-foraging-component-field="minQuantity"
+                                                    data-profile-id="{{profileId}}"
+                                                    data-collection="{{collection}}"
+                                                    data-index="{{index}}"
+                                                >
+                                            </label>
+
+                                            <label class="artisan-foraging-edit-field" title="Quantità massima raccolta">
+                                                <span>Max</span>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    step="1"
+                                                    value="{{maxQuantity}}"
+                                                    data-artisan-foraging-component-field="maxQuantity"
+                                                    data-profile-id="{{profileId}}"
+                                                    data-collection="{{collection}}"
+                                                    data-index="{{index}}"
+                                                >
+                                            </label>
+
+                                            <button type="button" class="artisan-icon-button" data-artisan-foraging-remove-component data-profile-id="{{profileId}}" data-collection="{{collection}}" data-index="{{index}}" title="Rimuovi">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    {{/each}}
+                                </div>
+                            {{else}}
+                                <p class="artisan-component-panel__empty">Nessuna risorsa inserita.</p>
+                            {{/if}}
+                        </section>
+
+                        <section class="artisan-foraging-panel" data-artisan-foraging-drop-zone data-profile-id="{{selectedForagingProfile.id}}" data-collection="tools">
+                            <header class="artisan-component-panel__header">
+                                <h3>Strumenti bonus prova</h3>
+                                <span>Aggiungono il bonus competenza del PG al tiro solo se il PG li possiede ed è competente</span>
+                            </header>
+
+                            <div class="artisan-component-add">
+                                <input type="text" placeholder="UUID strumento" data-artisan-foraging-component-uuid>
+                                <span class="artisan-inline-note">Bonus prova = competenza del PG</span>
+                                <button type="button" class="artisan-small-button" data-artisan-foraging-add-component data-profile-id="{{selectedForagingProfile.id}}" data-collection="tools">
+                                    <i class="fa-solid fa-plus"></i>
+                                    Aggiungi
+                                </button>
+                            </div>
+
+                            {{#if selectedForagingProfile.tools.length}}
+                                <div class="artisan-component-list">
+                                    {{#each selectedForagingProfile.tools}}
+                                        <div class="artisan-component-row artisan-foraging-row {{#unless found}}is-missing{{/unless}}">
+                                            <img src="{{img}}" alt="{{name}}">
+                                            <div class="artisan-component-row__main">
+                                                <strong>{{name}}</strong>
+                                                <code>{{uuid}}</code>
+                                            </div>
+                                            <span class="artisan-component-row__quantity-static" title="Bonus alla prova applicato solo se il PG possiede lo strumento ed è competente">{{quantityLabel}}</span>
+                                            <button type="button" class="artisan-icon-button" data-artisan-foraging-remove-component data-profile-id="{{profileId}}" data-collection="{{collection}}" data-index="{{index}}" title="Rimuovi">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    {{/each}}
+                                </div>
+                            {{else}}
+                                <p class="artisan-component-panel__empty">Nessuno strumento bonus prova inserito.</p>
+                            {{/if}}
+                        </section>
+
+                        <section class="artisan-inspector__summary">
+                            <div><strong>{{selectedForagingProfile.resourceCount}}</strong><span>Risorse</span></div>
+                            <div><strong>{{selectedForagingProfile.totalResourceWeight}}</strong><span>Peso totale</span></div>
+                            <div><strong>{{selectedForagingProfile.maxResources}}</strong><span>Max diverse</span></div>
+                            <div><strong>{{selectedForagingProfile.dc}}</strong><span>CD</span></div>
+                        </section>
+
+                    {{else}}
+
+                        <section class="artisan-manager__empty">
+                            <i class="fa-solid fa-leaf"></i>
+                            <h3>Nessuna lista Foraging</h3>
+                            <p>Crea una lista per iniziare ad aggiungere risorse da compendio.</p>
+                        </section>
+
+                    {{/if}}
+                </main>
+
+            </section>
+
+        {{/if}}
+
+        {{#if isHarvestSection}}
+
+            <header class="artisan-manager__toolbar">
+                <h3>Harvest</h3>
+
+                <div class="artisan-toolbar-actions">
+                    <button type="button" class="artisan-small-button" data-artisan-export-harvest>
+                        <i class="fa-solid fa-file-export"></i>
+                        Esporta liste
+                    </button>
+
+                    <button type="button" class="artisan-small-button" data-artisan-import-harvest>
+                        <i class="fa-solid fa-file-import"></i>
+                        Importa liste
+                    </button>
+                    <input type="file" accept="application/json,.json" data-artisan-import-harvest-file hidden>
+
+                    <button type="button" class="artisan-button" data-artisan-new-harvest-profile>
+                        <i class="fa-solid fa-plus"></i>
+                        Nuova lista
+                    </button>
+                </div>
+            </header>
+
+            <section class="artisan-harvest-layout">
+
+                <aside class="artisan-harvest-list">
+                    {{#if harvestProfiles.length}}
+                        {{#each harvestProfiles}}
+                            <button
+                                type="button"
+                                class="artisan-explorer__item {{#if selected}}is-selected{{/if}}"
+                                data-artisan-select-harvest-profile
+                                data-profile-id="{{id}}"
+                            >
+                                <i class="{{icon}}"></i>
+                                <span>{{label}}</span>
+                            </button>
+                        {{/each}}
+                    {{else}}
+                        <p class="artisan-component-panel__empty">Nessuna lista Harvest.</p>
+                    {{/if}}
+                </aside>
+
+                <main class="artisan-harvest-content">
+                    {{#if selectedHarvestProfile}}
+
+                        <header class="artisan-inspector__header">
+                            <div class="artisan-inspector__header-main">
+                                <i class="fa-solid fa-drumstick-bite artisan-harvest-icon"></i>
+                                <div>
+                                    <h2>{{selectedHarvestProfile.name}}</h2>
+                                    <p>{{selectedHarvestProfile.id}}</p>
+                                </div>
+                            </div>
+
+                            <div class="artisan-inspector__header-actions">
+                                <button
+                                    type="button"
+                                    class="artisan-button"
+                                    data-artisan-start-harvest
+                                    data-profile-id="{{selectedHarvestProfile.id}}"
+                                >
+                                    <i class="fa-solid fa-dice-d20"></i>
+                                    Avvia Harvest
+                                </button>
+
+                                <button
+                                    type="button"
+                                    class="artisan-small-button artisan-danger-button"
+                                    data-artisan-delete-harvest-profile
+                                    data-profile-id="{{selectedHarvestProfile.id}}"
+                                >
+                                    <i class="fa-solid fa-trash"></i>
+                                    Cancella lista
+                                </button>
+                            </div>
+                        </header>
+
+                        <div class="artisan-inspector__form">
+                            <div class="artisan-inspector__field">
+                                <label>Nome lista</label>
+                                <input type="text" value="{{selectedHarvestProfile.name}}" data-artisan-harvest-field="name" data-profile-id="{{selectedHarvestProfile.id}}">
+                            </div>
+
+                            <div class="artisan-inspector__field">
+                                <label>Tipo creatura</label>
+                                <select data-artisan-harvest-field="creatureType" data-profile-id="{{selectedHarvestProfile.id}}">
+                                    <option value="beast">Bestia</option>
+                                    <option value="humanoid">Umanoide</option>
+                                    <option value="monstrosity">Mostruosità</option>
+                                    <option value="dragon">Drago</option>
+                                    <option value="undead">Non morto</option>
+                                    <option value="plant">Vegetale</option>
+                                    <option value="construct">Costrutto</option>
+                                    <option value="elemental">Elementale</option>
+                                    <option value="fey">Folletto</option>
+                                    <option value="fiend">Immondo</option>
+                                    <option value="celestial">Celestiale</option>
+                                    <option value="giant">Gigante</option>
+                                    <option value="ooze">Melma</option>
+                                    <option value="aberration">Aberrazione</option>
+                                </select>
+                                <input type="hidden" value="{{selectedHarvestProfile.creatureType}}" data-artisan-harvest-creature-type-current>
+                                <small>Serve per catalogare da quale tipo di creatura provengono le parti.</small>
+                            </div>
+
+                            <div class="artisan-inspector__field">
+                                <label>Professione</label>
+                                <select data-artisan-harvest-field="profession" data-profile-id="{{selectedHarvestProfile.id}}">
+                                    {{#each harvestProfessionOptions}}
+                                        <option value="{{id}}" title="{{description}}">{{label}} — {{skill}}</option>
+                                    {{/each}}
+                                </select>
+                                <input type="hidden" value="{{selectedHarvestProfile.profession}}" data-artisan-harvest-profession-current>
+                            </div>
+
+                            <div class="artisan-inspector__field">
+                                <label>Professione del PG</label>
+                                {{#if selectedHarvestActorProfession}}
+                                    <input type="text" value="{{selectedHarvestActorName}} — livello {{selectedHarvestActorProfession.level}}, XP {{selectedHarvestActorProfession.xp}}, prossimo livello: {{selectedHarvestActorProfession.xpToNextLevel}} XP, estrazione {{selectedHarvestActorProfession.gatheringMultiplierLabel}}" disabled>
+                                    <small>Il livello viene letto dal PG selezionato. La lista Harvest non salva un livello manuale.</small>
+                                {{else}}
+                                    <input type="text" value="Seleziona un token per leggere la professione dal PG" disabled>
+                                {{/if}}
+                            </div>
+
+                            <div class="artisan-inspector__field">
+                                <label>Uso Harvest</label>
+                                <input type="text" value="Usa la lista selezionata sul PG attivo" disabled>
+                                <small>Non serve bersagliare un token. Seleziona solo il PG che esegue l'Harvest.</small>
+                            </div>
+
+                            <div class="artisan-inspector__field">
+                                <label>Abilità tiro</label>
+                                <input type="text" value="{{selectedHarvestProfile.skill}}" placeholder="Es. survival, nature, perception" data-artisan-harvest-field="skill" data-profile-id="{{selectedHarvestProfile.id}}">
+                            </div>
+
+                            <div class="artisan-inspector__field">
+                                <label>CD</label>
+                                <input type="number" value="{{selectedHarvestProfile.dc}}" min="0" step="1" data-artisan-harvest-field="dc" data-profile-id="{{selectedHarvestProfile.id}}">
+                            </div>
+
+                            <div class="artisan-inspector__field">
+                                <label>Tempo (minuti)</label>
+                                <input type="number" value="{{selectedHarvestProfile.time}}" min="0" step="1" data-artisan-harvest-field="time" data-profile-id="{{selectedHarvestProfile.id}}">
+                            </div>
+
+                            <div class="artisan-inspector__field">
+                                <label>Massimo parti diverse</label>
+                                <input type="number" value="{{selectedHarvestProfile.maxResources}}" min="1" step="1" data-artisan-harvest-field="maxResources" data-profile-id="{{selectedHarvestProfile.id}}">
+                                <small>Limita quante parti diverse possono uscire da un singolo Harvest.</small>
+                            </div>
+
+                            <div class="artisan-inspector__field artisan-toggle-field">
+                                <label>Consuma strumento richiesto</label>
+                                <label class="artisan-checkbox-line">
+                                    <input type="checkbox" data-artisan-harvest-field="consumeRequiredTools" data-profile-id="{{selectedHarvestProfile.id}}" {{#if selectedHarvestProfile.consumeRequiredTools}}checked{{/if}}>
+                                    <span>Consuma 1 uso/quantità dello strumento richiesto quando una parte viene estratta.</span>
+                                </label>
+                                <small>Vale solo per le parti che hanno uno Strumento richiesto impostato.</small>
+                            </div>
+                        </div>
+
+                        <section class="artisan-harvest-panel" data-artisan-harvest-drop-zone data-profile-id="{{selectedHarvestProfile.id}}" data-collection="resources">
+                            <header class="artisan-component-panel__header">
+                                <h3>Parti estraibili</h3>
+                                <span>Trascina Item da compendio o mondo</span>
+                            </header>
+
+                            <p class="artisan-muted-note">Rischio rovina per rarità: Comune 0%, Non comune 10%, Rara 25%, Molto rara 40%, Leggendaria 60%.</p>
+
+                            <div class="artisan-component-add artisan-harvest-resource-add">
+                                <input type="text" placeholder="UUID parte" data-artisan-harvest-component-uuid>
+                                <input type="text" placeholder="UUID strumento richiesto opzionale" title="Se compilato, questa parte può uscire solo se il PG possiede questo strumento" data-artisan-harvest-component-required-tool-uuid>
+                                <select title="Rarità parte" data-artisan-harvest-component-rarity>
+                                    <option value="common">Comune</option>
+                                    <option value="uncommon">Non comune</option>
+                                    <option value="rare">Rara</option>
+                                    <option value="veryRare">Molto rara</option>
+                                    <option value="legendary">Leggendaria</option>
+                                </select>
+                                <input type="number" min="0.1" step="0.1" title="Peso importato dall'Item, modificabile" placeholder="Peso auto" data-artisan-harvest-component-weight>
+                                <input type="number" min="1" step="1" value="1" title="Quantità minima" placeholder="Min" data-artisan-harvest-component-min-quantity>
+                                <input type="number" min="1" step="1" value="1" title="Quantità massima" placeholder="Max" data-artisan-harvest-component-max-quantity>
+                                <button type="button" class="artisan-small-button" data-artisan-harvest-add-component data-profile-id="{{selectedHarvestProfile.id}}" data-collection="resources">
+                                    <i class="fa-solid fa-plus"></i>
+                                    Aggiungi
+                                </button>
+                            </div>
+
+                            {{#if selectedHarvestProfile.resources.length}}
+                                <div class="artisan-component-list">
+                                    {{#each selectedHarvestProfile.resources}}
+                                        <div class="artisan-component-row artisan-harvest-row artisan-harvest-resource-row {{#unless found}}is-missing{{/unless}}">
+                                            <img src="{{img}}" alt="{{name}}">
+                                            <div class="artisan-component-row__main">
+                                                <strong>{{name}}</strong>
+                                                <code>{{uuid}}</code>
+                                            </div>
+
+                                            <label class="artisan-harvest-edit-field" title="Rarità parte">
+                                                <span>Rarità</span>
+                                                <select
+                                                    data-artisan-harvest-rarity-select
+                                                    data-current-rarity="{{rarity}}"
+                                                    data-artisan-harvest-component-field="rarity"
+                                                    data-profile-id="{{profileId}}"
+                                                    data-collection="{{collection}}"
+                                                    data-index="{{index}}"
+                                                >
+                                                    <option value="common">Comune</option>
+                                                    <option value="uncommon">Non comune</option>
+                                                    <option value="rare">Rara</option>
+                                                    <option value="veryRare">Molto rara</option>
+                                                    <option value="legendary">Leggendaria</option>
+                                                </select>
+                                            </label>
+
+                                            <label class="artisan-harvest-edit-field" title="Peso / probabilità di estrazione">
+                                                <span>Peso</span>
+                                                <input
+                                                    type="number"
+                                                    min="0.1"
+                                                    step="0.1"
+                                                    value="{{weight}}"
+                                                    data-artisan-harvest-component-field="weight"
+                                                    data-profile-id="{{profileId}}"
+                                                    data-collection="{{collection}}"
+                                                    data-index="{{index}}"
+                                                >
+                                            </label>
+
+                                            <label class="artisan-harvest-edit-field" title="Quantità minima estrazione">
+                                                <span>Min</span>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    step="1"
+                                                    value="{{minQuantity}}"
+                                                    data-artisan-harvest-component-field="minQuantity"
+                                                    data-profile-id="{{profileId}}"
+                                                    data-collection="{{collection}}"
+                                                    data-index="{{index}}"
+                                                >
+                                            </label>
+
+                                            <label class="artisan-harvest-edit-field" title="Quantità massima estrazione">
+                                                <span>Max</span>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    step="1"
+                                                    value="{{maxQuantity}}"
+                                                    data-artisan-harvest-component-field="maxQuantity"
+                                                    data-profile-id="{{profileId}}"
+                                                    data-collection="{{collection}}"
+                                                    data-index="{{index}}"
+                                                >
+                                            </label>
+
+                                            <label class="artisan-harvest-edit-field artisan-harvest-required-tool-field" title="UUID strumento richiesto per estrarre questa parte">
+                                                <span>Strumento richiesto</span>
+                                                <input
+                                                    type="text"
+                                                    value="{{requiredToolUuid}}"
+                                                    placeholder="Nessuno"
+                                                    data-artisan-harvest-component-field="requiredToolUuid"
+                                                    data-profile-id="{{profileId}}"
+                                                    data-collection="{{collection}}"
+                                                    data-index="{{index}}"
+                                                >
+                                                <small>{{requiredToolName}}</small>
+                                            </label>
+
+                                            <button type="button" class="artisan-icon-button" data-artisan-harvest-remove-component data-profile-id="{{profileId}}" data-collection="{{collection}}" data-index="{{index}}" title="Rimuovi">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    {{/each}}
+                                </div>
+                            {{else}}
+                                <p class="artisan-component-panel__empty">Nessuna parte inserita.</p>
+                            {{/if}}
+                        </section>
+
+                        <section class="artisan-harvest-panel" data-artisan-harvest-drop-zone data-profile-id="{{selectedHarvestProfile.id}}" data-collection="tools">
+                            <header class="artisan-component-panel__header">
+                                <h3>Strumenti bonus prova</h3>
+                                <span>Aggiungono il bonus competenza del PG al tiro solo se il PG li possiede ed è competente</span>
+                            </header>
+
+                            <div class="artisan-component-add">
+                                <input type="text" placeholder="UUID strumento" data-artisan-harvest-component-uuid>
+                                <span class="artisan-inline-note">Bonus prova = competenza del PG</span>
+                                <button type="button" class="artisan-small-button" data-artisan-harvest-add-component data-profile-id="{{selectedHarvestProfile.id}}" data-collection="tools">
+                                    <i class="fa-solid fa-plus"></i>
+                                    Aggiungi
+                                </button>
+                            </div>
+
+                            {{#if selectedHarvestProfile.tools.length}}
+                                <div class="artisan-component-list">
+                                    {{#each selectedHarvestProfile.tools}}
+                                        <div class="artisan-component-row artisan-harvest-row {{#unless found}}is-missing{{/unless}}">
+                                            <img src="{{img}}" alt="{{name}}">
+                                            <div class="artisan-component-row__main">
+                                                <strong>{{name}}</strong>
+                                                <code>{{uuid}}</code>
+                                            </div>
+                                            <span class="artisan-component-row__quantity-static" title="Bonus alla prova applicato solo se il PG possiede lo strumento ed è competente">{{quantityLabel}}</span>
+                                            <button type="button" class="artisan-icon-button" data-artisan-harvest-remove-component data-profile-id="{{profileId}}" data-collection="{{collection}}" data-index="{{index}}" title="Rimuovi">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        </div>
+                                    {{/each}}
+                                </div>
+                            {{else}}
+                                <p class="artisan-component-panel__empty">Nessuno strumento bonus prova inserito.</p>
+                            {{/if}}
+                        </section>
+
+                        <section class="artisan-inspector__summary">
+                            <div><strong>{{selectedHarvestProfile.resourceCount}}</strong><span>Parti</span></div>
+                            <div><strong>{{selectedHarvestProfile.totalResourceWeight}}</strong><span>Peso totale</span></div>
+                            <div><strong>{{selectedHarvestProfile.maxResources}}</strong><span>Max diverse</span></div>
+                            <div><strong>{{selectedHarvestProfile.dc}}</strong><span>CD</span></div>
+                        </section>
+
+                    {{else}}
+
+                        <section class="artisan-manager__empty">
+                            <i class="fa-solid fa-drumstick-bite"></i>
+                            <h3>Nessuna lista Harvest</h3>
+                            <p>Crea una lista per iniziare ad aggiungere parti da compendio.</p>
+                        </section>
+
+                    {{/if}}
+                </main>
+
+            </section>
+
+        {{/if}}
+
+        {{#if isProfessionsSection}}
+
+            <header class="artisan-manager__toolbar">
+                <h3>Professioni PG</h3>
+
+                <div class="artisan-toolbar-actions">
+                    <button type="button" class="artisan-button" data-artisan-refresh-actor-professions>
+                        <i class="fa-solid fa-rotate"></i>
+                        Aggiorna
+                    </button>
+                </div>
+            </header>
+
+            {{#if selectedActorName}}
+
+                <section class="artisan-inspector artisan-professions-panel">
+
+                    <header class="artisan-inspector__header">
+                        <div class="artisan-inspector__header-main">
+                            <div>
+                                <h2>{{selectedActorName}}</h2>
+                                <p>Professioni salvate sul PG tramite flags.artisan.professions</p>
+                                <p class="artisan-inline-note">Modificando gli XP, il livello viene ricalcolato automaticamente secondo le soglie professione.</p>
+                            </div>
+                        </div>
+                    </header>
+
+                    <section class="artisan-profession-summary">
+                        <div class="artisan-profession-summary__card">
+                            <strong>{{selectedActorProfessionSummary.trainedCount}}</strong>
+                            <span>Professioni apprese</span>
+                        </div>
+                        <div class="artisan-profession-summary__card">
+                            <strong>{{selectedActorProfessionSummary.totalXp}}</strong>
+                            <span>XP totali</span>
+                        </div>
+                        <div class="artisan-profession-summary__card">
+                            <strong>{{selectedActorProfessionSummary.highestLabel}} {{selectedActorProfessionSummary.highestLevel}}</strong>
+                            <span>Migliore professione</span>
+                        </div>
+                        <div class="artisan-profession-summary__card">
+                            <strong>{{selectedActorProfessionSummary.nextXpToLevel}}</strong>
+                            <span>XP al prossimo livello: {{selectedActorProfessionSummary.nextLabel}}</span>
+                        </div>
+                    </section>
+
+                    <div class="artisan-profession-list">
+                        {{#each selectedActorProfessions}}
+                            <article class="artisan-profession-card">
+                                <div class="artisan-profession-card__main">
+                                    <h3>{{label}}</h3>
+                                    <p>Raccolta {{gatheringMultiplierLabel}} · Creazione {{craftingMultiplierLabel}}</p>
+                                </div>
+
+                                <label>
+                                    <span>Livello</span>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        max="{{maxLevel}}"
+                                        step="1"
+                                        value="{{level}}"
+                                        data-artisan-actor-profession-field
+                                        data-actor-profession-field="level"
+                                        data-profession-id="{{id}}"
+                                    >
+                                </label>
+
+                                <label>
+                                    <span>XP</span>
+                                    <small>Il livello si aggiorna dagli XP.</small>
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        value="{{xp}}"
+                                        data-artisan-actor-profession-field
+                                        data-actor-profession-field="xp"
+                                        data-profession-id="{{id}}"
+                                    >
+                                </label>
+
+                                <div class="artisan-profession-progress">
+                                    <div class="artisan-profession-progress__bar">
+                                        <span style="width: {{progressPercent}}%;"></span>
+                                    </div>
+                                    {{#if xpForNextLevel}}
+                                        <small>{{xp}} / {{xpForNextLevel}} XP · mancano {{xpToNextLevel}} XP</small>
+                                    {{else}}
+                                        <small>Livello massimo raggiunto</small>
+                                    {{/if}}
+                                </div>
+
+                                <div class="artisan-profession-quick-actions">
+                                    <button type="button" class="artisan-small-button" data-artisan-profession-xp-action data-action="add10" data-profession-id="{{id}}">+10 XP</button>
+                                    <button type="button" class="artisan-small-button" data-artisan-profession-xp-action data-action="add50" data-profession-id="{{id}}">+50 XP</button>
+                                    <button type="button" class="artisan-small-button" data-artisan-profession-xp-action data-action="next" data-profession-id="{{id}}">Prossimo livello</button>
+                                    <button type="button" class="artisan-small-button artisan-danger-button" data-artisan-profession-xp-action data-action="reset" data-profession-id="{{id}}">Reset XP</button>
+                                </div>
+                            </article>
+                        {{/each}}
+                    </div>
+
+                </section>
+
+            {{else}}
+
+                <section class="artisan-manager__empty">
+                    <i class="fa-solid fa-user-gear"></i>
+                    <h3>Nessun PG selezionato</h3>
+                    <p>Seleziona un token sulla scena per vedere e modificare livello e XP delle professioni.</p>
+                </section>
+
+            {{/if}}
+
+        {{/if}}
+
+
+        {{#if isActivitySection}}
+
+            <header class="artisan-manager__toolbar">
+                <h3>Registro attività</h3>
+
+                <div class="artisan-toolbar-actions">
+                    <button type="button" class="artisan-button" data-artisan-refresh-activity>
+                        <i class="fa-solid fa-rotate"></i>
+                        Aggiorna
+                    </button>
+
+                    <button type="button" class="artisan-button" data-artisan-export-activity>
+                        <i class="fa-solid fa-file-export"></i>
+                        Esporta registro
+                    </button>
+
+                    <button type="button" class="artisan-button artisan-button--danger" data-artisan-clear-activity>
+                        <i class="fa-solid fa-trash"></i>
+                        Cancella registro
+                    </button>
+                </div>
+            </header>
+
+            {{#if activityLog.length}}
+                <section class="artisan-activity-log">
+                    {{#each activityLog}}
+                        <article class="artisan-activity-entry artisan-activity-entry--{{type}}">
+                            <div class="artisan-activity-entry__icon">
+                                <i class="{{icon}}"></i>
+                            </div>
+
+                            <div class="artisan-activity-entry__body">
+                                <header>
+                                    <strong>{{title}}</strong>
+                                    <span>{{timeLabel}}</span>
+                                </header>
+                                <p>{{message}}</p>
+                                {{#if actorName}}<small>PG: {{actorName}}</small>{{/if}}
+                            </div>
+                        </article>
+                    {{/each}}
+                </section>
+            {{else}}
+                <section class="artisan-manager__empty">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                    <h3>Nessuna attività registrata</h3>
+                    <p>Il registro si popolerà quando eseguirai Crafting, Foraging, Harvest, import, export o backup.</p>
+                </section>
+            {{/if}}
+
+        {{/if}}
+
+
+        {{#if isPresetsSection}}
+
+            <header class="artisan-manager__toolbar">
+                <h3>Pacchetti predefiniti</h3>
+
+                <div class="artisan-toolbar-actions">
+                    <button type="button" class="artisan-button" data-artisan-install-all-preset-packages>
+                        <i class="fa-solid fa-boxes-stacked"></i>
+                        Installa tutti
+                    </button>
+                </div>
+            </header>
+
+            <section class="artisan-preset-panel">
+                <div class="artisan-preset-panel__intro">
+                    <h2>Pacchetti base Artisan</h2>
+                    <p>Questi pacchetti creano strutture pronte da completare con gli Item dei tuoi compendi. Non sovrascrivono elementi esistenti con lo stesso nome.</p>
+                </div>
+
+                <div class="artisan-preset-grid">
+                    {{#each presetPackages}}
+                        <article class="artisan-preset-card">
+                            <div class="artisan-preset-card__icon">
+                                <i class="{{icon}}"></i>
+                            </div>
+
+                            <div class="artisan-preset-card__body">
+                                <header>
+                                    <h3>{{title}}</h3>
+                                    <span>{{entries}} elementi</span>
+                                </header>
+
+                                <strong>{{subtitle}}</strong>
+                                <p>{{description}}</p>
+
+                                <button
+                                    type="button"
+                                    class="artisan-button"
+                                    data-artisan-install-preset-package
+                                    data-preset-id="{{id}}"
+                                >
+                                    <i class="fa-solid fa-download"></i>
+                                    Installa pacchetto
+                                </button>
+                            </div>
+                        </article>
+                    {{/each}}
+                </div>
+            </section>
+
+        {{/if}}
+
+
+        {{#if isSettingsSection}}
+
+            <header class="artisan-manager__toolbar">
+                <h3>Impostazioni modulo</h3>
+
+                <div class="artisan-toolbar-actions">
+                    <button type="button" class="artisan-button" data-artisan-reset-settings>
+                        <i class="fa-solid fa-rotate-left"></i>
+                        Ripristina predefinite
+                    </button>
+                </div>
+            </header>
+
+            <section class="artisan-inspector artisan-settings-panel">
+                <header class="artisan-inspector__header">
+                    <div class="artisan-inspector__header-main">
+                        <div>
+                            <h2>Impostazioni Artisan</h2>
+                            <p>Le impostazioni sono salvate nel mondo corrente.</p>
+                            <p class="artisan-inline-note">Questa schermata prepara il bilanciamento del modulo senza modificare codice a mano.</p>
+                        </div>
+                    </div>
+                </header>
+
+                <div class="artisan-settings-list">
+                    {{#each artisanSettings}}
+                        <label class="artisan-setting-row">
+                            <input
+                                type="checkbox"
+                                {{#if checked}}checked{{/if}}
+                                data-artisan-setting-field
+                                data-artisan-setting-key="{{key}}"
+                            >
+                            <span class="artisan-setting-row__content">
+                                <strong>{{label}}</strong>
+                                <small>{{description}}</small>
+                            </span>
+                        </label>
+                    {{/each}}
+                </div>
+            </section>
+
+        {{/if}}
+
+
+
+    </main>
+
+</div>
