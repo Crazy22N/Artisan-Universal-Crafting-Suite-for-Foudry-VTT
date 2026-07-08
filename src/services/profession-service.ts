@@ -115,9 +115,9 @@ export class ProfessionService {
 
         return this.professions.map(profession => ({
             id: profession.id,
-            label: profession.label,
+            label: this.getLocalizedLabel(profession),
             skill: profession.skill,
-            description: profession.description,
+            description: this.getLocalizedDescription(profession),
             maxLevel: profession.maxLevel
         }));
 
@@ -137,7 +137,9 @@ export class ProfessionService {
             return "Non impostata";
         }
 
-        return this.getProfession(id)?.label ?? id;
+        const profession = this.getProfession(id);
+
+        return profession ? this.getLocalizedLabel(profession) : id;
 
     }
 
@@ -167,7 +169,7 @@ export class ProfessionService {
 
     public getLevelLabel(value: unknown): string {
 
-        return `Livello ${this.normalizeLevel(value)}`;
+        return `${game.i18n.localize("ARTISAN.Level")} ${this.normalizeLevel(value)}`;
 
     }
 
@@ -191,8 +193,8 @@ export class ProfessionService {
             : this.normalizeId(professionId || "sconosciuta");
 
         const label = profession
-            ? profession.label
-            : (professionId || "Sconosciuta");
+            ? this.getLocalizedLabel(profession)
+            : (professionId || game.i18n.localize("ARTISAN.Unknown"));
 
         const maxLevel = profession?.maxLevel ?? 5;
 
@@ -435,6 +437,24 @@ export class ProfessionService {
     private formatMultiplier(value: number): string {
 
         return String(value).replace(".", ",");
+
+    }
+
+    private getLocalizedLabel(profession: ArtisanProfession): string {
+
+        const key = `ARTISAN.Profession.${profession.id}.Label`;
+        const localized = game.i18n.localize(key);
+
+        return localized === key ? profession.label : localized;
+
+    }
+
+    private getLocalizedDescription(profession: ArtisanProfession): string {
+
+        const key = `ARTISAN.Profession.${profession.id}.Description`;
+        const localized = game.i18n.localize(key);
+
+        return localized === key ? profession.description : localized;
 
     }
 

@@ -50,6 +50,19 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
     },
   };
 
+  public openSection(sectionId: string): void {
+    this.selectedSectionId = sectionId;
+    this.render(true);
+  }
+
+  public openMainSection(): void {
+    if (["presets", "help", "settings"].includes(this.selectedSectionId)) {
+      this.selectedSectionId = "recipes";
+    }
+
+    this.render(true);
+  }
+
   async _prepareContext(_options: unknown): Promise<object> {
     const recipeService = new RecipeService();
     const foragingService = new ForagingService();
@@ -91,7 +104,7 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const explorerData = [
       {
         id: "recipes",
-        label: "Ricette",
+        label: game.i18n.localize("ARTISAN.Recipes"),
         icon: "fa-solid fa-book",
         count: recipes.length,
         items: (recipes as any[]).map(recipe => ({
@@ -102,44 +115,30 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
       },
       {
         id: "foraging",
-        label: "Foraging",
+        label: game.i18n.localize("ARTISAN.Foraging"),
         icon: "fa-solid fa-leaf",
         count: foragingData.profiles.length,
         items: [],
       },
       {
         id: "harvest",
-        label: "Harvest",
+        label: game.i18n.localize("ARTISAN.Harvest"),
         icon: "fa-solid fa-paw",
         count: harvestData.profiles.length,
         items: [],
       },
       {
         id: "professions",
-        label: "Professioni PG",
+        label: game.i18n.localize("ARTISAN.ActorProfessions"),
         icon: "fa-solid fa-user-gear",
         count: selectedActor ? 1 : 0,
         items: [],
       },
       {
         id: "activity",
-        label: "Registro attività",
+        label: game.i18n.localize("ARTISAN.ActivityLog"),
         icon: "fa-solid fa-clock-rotate-left",
         count: this.getActivityLog().length,
-        items: [],
-      },
-      {
-        id: "presets",
-        label: "Pacchetti",
-        icon: "fa-solid fa-box-open",
-        count: this.getPresetPackages().length,
-        items: [],
-      },
-      {
-        id: "settings",
-        label: "Impostazioni",
-        icon: "fa-solid fa-sliders",
-        count: 0,
         items: [],
       },
     ];
@@ -218,6 +217,7 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
       isProfessionsSection: this.selectedSectionId === "professions",
       isActivitySection: this.selectedSectionId === "activity",
       isPresetsSection: this.selectedSectionId === "presets",
+      isHelpSection: this.selectedSectionId === "help",
       isSettingsSection: this.selectedSectionId === "settings",
       presetPackages: this.getPresetPackages(),
       activityLog: this.getActivityLogView(),
@@ -1282,31 +1282,31 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
     return [
       {
         key: "enableProfessionXp",
-        label: "XP professione",
+        label: game.i18n.localize("ARTISAN.ProfessionXp"),
         description: "Permette ad Artisan di assegnare XP professione durante Crafting, Foraging e Harvest.",
         checked: settings.enableProfessionXp,
       },
       {
         key: "enableOutputQuality",
-        label: "Qualità output Crafting",
+        label: game.i18n.localize("ARTISAN.CraftingOutputQuality"),
         description: "Permette di applicare qualità agli oggetti creati in base al margine del tiro.",
         checked: settings.enableOutputQuality,
       },
       {
         key: "enableToolDamage",
-        label: "Danno strumenti su critico negativo",
+        label: game.i18n.localize("ARTISAN.ToolDamageOnCriticalFailure"),
         description: "Permette a Foraging e Harvest di danneggiare o distruggere strumenti su 1 naturale.",
         checked: settings.enableToolDamage,
       },
       {
         key: "enableHarvestRuinRisk",
-        label: "Rischio rovina Harvest",
+        label: game.i18n.localize("ARTISAN.HarvestRuinRisk"),
         description: "Permette alle parti rare Harvest di rovinarsi in base alla rarità.",
         checked: settings.enableHarvestRuinRisk,
       },
       {
         key: "enableActivityLog",
-        label: "Registro attività",
+        label: game.i18n.localize("ARTISAN.ActivityLog"),
         description: "Registra le attività Artisan nella sezione Registro attività.",
         checked: settings.enableActivityLog,
       },
@@ -1471,11 +1471,11 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
         `,
         buttons: {
           cancel: {
-            label: "Annulla",
+            label: game.i18n.localize("ARTISAN.Cancel"),
             callback: () => resolve(false),
           },
           delete: {
-            label: "Cancella",
+            label: game.i18n.localize("ARTISAN.Delete"),
             callback: () => resolve(true),
           },
         },
@@ -1543,8 +1543,8 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
         recipeLocked: false,
         recipeStatusClass: "is-unknown",
         recipeStatusIcon: "fa-solid fa-circle-question",
-        recipeStatusLabel: "Seleziona PG",
-        recipeStatusTitle: "Seleziona un token PG per vedere se può craftare questa ricetta.",
+        recipeStatusLabel: game.i18n.localize("ARTISAN.SelectActor"),
+        recipeStatusTitle: game.i18n.localize("ARTISAN.SelectActorRecipeTitle"),
         requiredProfessionLabel: professionLabel,
         requiredProfessionLevel: requiredLevel,
         actorProfessionLevel: 0,
@@ -1557,7 +1557,7 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
         recipeLocked: true,
         recipeStatusClass: "is-locked",
         recipeStatusIcon: "fa-solid fa-lock",
-        recipeStatusLabel: `Richiede ${professionLabel} ${requiredLevel}`,
+        recipeStatusLabel: `${game.i18n.localize("ARTISAN.Requires")} ${professionLabel} ${requiredLevel}`,
         recipeStatusTitle: `${actor.name}: ${professionLabel} livello ${actorLevel}. Richiesto livello ${requiredLevel}.`,
         requiredProfessionLabel: professionLabel,
         requiredProfessionLevel: requiredLevel,
@@ -1572,7 +1572,7 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
       recipeStatusIcon: "fa-solid fa-circle-check",
       recipeStatusLabel: requiredLevel > 0
         ? `${professionLabel} ${actorLevel}/${requiredLevel}`
-        : "Disponibile",
+        : game.i18n.localize("ARTISAN.Available"),
       recipeStatusTitle: requiredLevel > 0
         ? `${actor.name}: requisito soddisfatto (${professionLabel} livello ${actorLevel}/${requiredLevel}).`
         : `${actor.name}: ricetta senza requisito professione.`,
@@ -1637,7 +1637,7 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
   private getRecipeLevelFilterOptions(): Array<{ value: string; label: string; selected: boolean }> {
     return [0, 1, 2, 3, 4, 5].map(level => ({
       value: String(level),
-      label: `Livello ${level}`,
+      label: `${game.i18n.localize("ARTISAN.Level")} ${level}`,
       selected: String(level) === this.recipeFilterLevel,
     }));
   }
@@ -2728,11 +2728,11 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
                 `,
         buttons: {
           cancel: {
-            label: "Annulla",
+            label: game.i18n.localize("ARTISAN.Cancel"),
             callback: () => resolve(false),
           },
           delete: {
-            label: "Cancella",
+            label: game.i18n.localize("ARTISAN.Delete"),
             callback: () => resolve(true),
           },
         },
@@ -2763,7 +2763,7 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
       button.dataset.profileId ?? this.selectedForagingProfileId;
 
     if (!profileId) {
-      ui.notifications.warn("Seleziona una lista Foraging.");
+      ui.notifications.warn(game.i18n.localize("ARTISAN.SelectForagingList"));
       return;
     }
 
@@ -3221,11 +3221,11 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
                 `,
         buttons: {
           cancel: {
-            label: "Annulla",
+            label: game.i18n.localize("ARTISAN.Cancel"),
             callback: () => resolve(false),
           },
           delete: {
-            label: "Cancella",
+            label: game.i18n.localize("ARTISAN.Delete"),
             callback: () => resolve(true),
           },
         },

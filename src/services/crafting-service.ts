@@ -41,6 +41,19 @@ interface ActorInventoryMatch {
     status: string;
 }
 
+interface CraftingToolProficiencyDetail {
+    name: string;
+    possessed: boolean;
+    proficient: boolean;
+    bonus: number;
+    applied: boolean;
+}
+
+interface CraftingToolProficiencyResult {
+    totalBonus: number;
+    details: CraftingToolProficiencyDetail[];
+}
+
 interface CraftingProfessionRequirement {
     professionId: string;
     professionLabel: string;
@@ -77,6 +90,9 @@ interface CraftingExecutionContext {
 interface CraftingRollResult {
     natural: number;
     modifier: number;
+    skillModifier: number;
+    toolProficiencyBonus: number;
+    toolProficiencyDetails: CraftingToolProficiencyDetail[];
     total: number;
     formula: string;
     dc: number;
@@ -257,7 +273,11 @@ export class CraftingService {
             return;
         }
 
-        const roll = await this.rollSkillCheck(actor, validation.recipeData);
+        const roll = await this.rollSkillCheck(
+            actor,
+            validation.recipeData,
+            context.tools
+        );
 
         await this.consumeIngredients(context);
 
@@ -849,13 +869,23 @@ export class CraftingService {
 
     private async rollSkillCheck(
         actor: Actor,
-        recipe: ArtisanRecipeData
+        recipe: ArtisanRecipeData,
+        tools: ActorInventoryMatch[] = []
     ): Promise<CraftingRollResult> {
 
-        const modifier = this.getActorSkillModifier(
+        const skillModifier = this.getActorSkillModifier(
             actor,
             recipe.skill
         );
+
+        const toolProficiency = this.getCraftingToolProficiencyBonus(
+            actor,
+            tools
+        );
+
+        const toolProficiencyBonus = toolProficiency.totalBonus;
+
+        const modifier = skillModifier + toolProficiencyBonus;
 
         const formula = modifier === 0
             ? "1d20"
@@ -890,6 +920,9 @@ export class CraftingService {
         return {
             natural,
             modifier,
+            skillModifier,
+            toolProficiencyBonus,
+            toolProficiencyDetails: toolProficiency.details,
             total,
             formula,
             dc,
@@ -950,6 +983,221 @@ export class CraftingService {
             margin,
             description: "Successo normale."
         };
+
+    }
+
+    private getCraftingToolProficiencyBonus(
+        actor: Actor,
+        tools: ActorInventoryMatch[]
+    ): CraftingToolProficiencyResult {
+
+        const proficiencyBonus = this.getActorProficiencyBonus(actor);
+
+        let totalBonus = 0;
+
+        const details: CraftingToolProficiencyDetail[] = [];
+
+        for (const tool of tools) {
+            const actorItem = tool.actorItem as any;
+            const sourceItem = tool.recipeEntry.document as any;
+
+            const possessed = !!actorItem && tool.sufficient;
+
+            const proficient = possessed
+                ? this.actorIsProficientWithTool(
+                    actor,
+                    actorItem,
+                    sourceItem
+                )
+                : false;
+
+            const bonus = possessed && proficient
+                ? Math.max(0, proficiencyBonus)
+                : 0;
+
+            const applied = bonus > 0;
+
+            if (applied) {
+                totalBonus += bonus;
+            }
+
+            details.push({
+                name: tool.recipeEntry.name,
+                possessed,
+                proficient,
+                bonus,
+                applied
+            });
+        }
+
+        return {
+            totalBonus,
+            details
+        };
+
+    }
+
+    private getActorProficiencyBonus(actor: Actor): number {
+
+        const candidates = [
+            foundry.utils.getProperty(actor, "system.attributes.prof"),
+            foundry.utils.getProperty(actor, "system.attributes.prof.value"),
+            foundry.utils.getProperty(actor, "system.attributes.proficiency"),
+            foundry.utils.getProperty(actor, "system.attributes.proficiency.value"),
+            foundry.utils.getProperty(actor, "system.prof"),
+            foundry.utils.getProperty(actor, "system.prof.value"),
+            foundry.utils.getProperty(actor, "system.details.proficiencyBonus"),
+            foundry.utils.getProperty(actor, "system.details.prof")
+        ];
+
+        for (const value of candidates) {
+            const numeric = Number(value);
+
+            if (Number.isFinite(numeric) && numeric > 0) {
+                return Math.floor(numeric);
+            }
+        }
+
+        return 0;
+
+    }
+
+    private actorIsProficientWithTool(
+        actor: Actor,
+        actorItem: any,
+        sourceItem: any
+    ): boolean {
+
+        if (!actorItem) {
+            return false;
+        }
+
+        if (this.readItemProficiency(actorItem)) {
+            return true;
+        }
+
+        const identifierCandidates = this.getToolIdentifierCandidates(
+            actorItem,
+            sourceItem
+        );
+
+        const actorTools = foundry.utils.getProperty(actor, "system.tools") as Record<string, any> | undefined;
+
+        if (!actorTools || typeof actorTools !== "object") {
+            return false;
+        }
+
+        for (const key of identifierCandidates) {
+            const toolData = actorTools[key];
+
+            if (this.readToolDataProficiency(toolData)) {
+                return true;
+            }
+        }
+
+        for (const toolData of Object.values(actorTools)) {
+            const label = String(
+                toolData?.label
+                ?? toolData?.name
+                ?? toolData?.id
+                ?? ""
+            ).trim().toLowerCase();
+
+            if (!label) {
+                continue;
+            }
+
+            if (identifierCandidates.includes(label) && this.readToolDataProficiency(toolData)) {
+                return true;
+            }
+        }
+
+        return false;
+
+    }
+
+    private readItemProficiency(item: any): boolean {
+
+        const candidates = [
+            foundry.utils.getProperty(item, "system.proficient"),
+            foundry.utils.getProperty(item, "system.proficiency"),
+            foundry.utils.getProperty(item, "system.prof"),
+            foundry.utils.getProperty(item, "system.prof.hasProficiency"),
+            foundry.utils.getProperty(item, "system.proficiencies.value")
+        ];
+
+        return candidates.some(value => {
+            if (typeof value === "boolean") {
+                return value;
+            }
+
+            if (typeof value === "number") {
+                return value > 0;
+            }
+
+            if (typeof value === "string") {
+                const clean = value.trim().toLowerCase();
+                return clean === "true" || clean === "proficient" || clean === "prof" || Number(clean) > 0;
+            }
+
+            return false;
+        });
+
+    }
+
+    private readToolDataProficiency(toolData: any): boolean {
+
+        if (!toolData) {
+            return false;
+        }
+
+        const candidates = [
+            toolData.value,
+            toolData.prof,
+            toolData.proficient,
+            toolData.proficiency,
+            toolData.hasProficiency
+        ];
+
+        return candidates.some(value => {
+            if (typeof value === "boolean") {
+                return value;
+            }
+
+            if (typeof value === "number") {
+                return value > 0;
+            }
+
+            if (typeof value === "string") {
+                const clean = value.trim().toLowerCase();
+                return clean === "true" || clean === "proficient" || clean === "prof" || Number(clean) > 0;
+            }
+
+            return false;
+        });
+
+    }
+
+    private getToolIdentifierCandidates(actorItem: any, sourceItem: any): string[] {
+
+        const values = [
+            actorItem?.system?.identifier,
+            actorItem?.system?.type?.value,
+            actorItem?.system?.type,
+            actorItem?.slug,
+            actorItem?.name,
+            sourceItem?.system?.identifier,
+            sourceItem?.system?.type?.value,
+            sourceItem?.system?.type,
+            sourceItem?.slug,
+            sourceItem?.name
+        ];
+
+        return Array.from(new Set(
+            values
+                .map(value => String(value ?? "").trim().toLowerCase())
+                .filter(value => value.length > 0)
+        ));
 
     }
 
@@ -1125,6 +1373,7 @@ export class CraftingService {
                 <p><strong>CD:</strong> ${context.validation.recipeData.dc}</p>
                 ${this.buildInventoryConfirmSection("Ingredienti da consumare", context.ingredients)}
                 ${this.buildInventoryConfirmSection("Strumenti richiesti", context.tools)}
+                ${this.buildToolProficiencyConfirmSection(context.actor, context.tools)}
                 ${this.buildOutputConfirmSection(context.outputs, context.lots)}
             </div>
         `;
@@ -1180,6 +1429,60 @@ export class CraftingService {
                         <th>Oggetto</th>
                         <th>Richiesto</th>
                         <th>Disponibile</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        `;
+
+    }
+
+    private buildToolProficiencyConfirmSection(
+        actor: Actor,
+        tools: ActorInventoryMatch[]
+    ): string {
+
+        if (tools.length === 0) {
+            return "";
+        }
+
+        const result = this.getCraftingToolProficiencyBonus(
+            actor,
+            tools
+        );
+
+        const rows = result.details.map(detail => {
+            const icon = detail.applied ? "✅" : "➖";
+            const status = detail.applied
+                ? `Bonus +${detail.bonus}`
+                : detail.possessed
+                    ? detail.proficient
+                        ? "Bonus non disponibile"
+                        : "Posseduto, non competente"
+                    : "Non posseduto";
+
+            return `
+                <tr>
+                    <td>${icon}</td>
+                    <td>${this.escapeHtml(detail.name)}</td>
+                    <td>${detail.possessed ? "Sì" : "No"}</td>
+                    <td>${detail.proficient ? "Sì" : "No"}</td>
+                    <td>${this.escapeHtml(status)}</td>
+                </tr>
+            `;
+        }).join("");
+
+        return `
+            <h4>Bonus strumenti competenti</h4>
+            <p><strong>Bonus totale al tiro:</strong> +${result.totalBonus}</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>Strumento</th>
+                        <th>Posseduto</th>
+                        <th>Competente</th>
+                        <th>Bonus</th>
                     </tr>
                 </thead>
                 <tbody>${rows}</tbody>
@@ -1390,13 +1693,16 @@ export class CraftingService {
                     <tbody>
                         <tr><td><strong>Formula</strong></td><td>${this.escapeHtml(roll.formula)}</td></tr>
                         <tr><td><strong>Tiro naturale</strong></td><td>${roll.natural}</td></tr>
-                        <tr><td><strong>Modificatore</strong></td><td>${roll.modifier >= 0 ? "+" : ""}${roll.modifier}</td></tr>
+                        <tr><td><strong>Modificatore abilità</strong></td><td>${roll.skillModifier >= 0 ? "+" : ""}${roll.skillModifier}</td></tr>
+                        <tr><td><strong>Bonus strumenti competenti</strong></td><td>+${roll.toolProficiencyBonus}</td></tr>
+                        <tr><td><strong>Modificatore totale</strong></td><td>${roll.modifier >= 0 ? "+" : ""}${roll.modifier}</td></tr>
                         <tr><td><strong>Totale</strong></td><td>${roll.total}</td></tr>
                         <tr><td><strong>CD</strong></td><td>${roll.dc}</td></tr>
                         <tr><td><strong>Margine</strong></td><td>${roll.success ? outputQuality.margin : "—"}</td></tr>
                         <tr><td><strong>Qualità output</strong></td><td>${roll.success ? `${this.escapeHtml(outputQuality.label)} — ${this.escapeHtml(outputQuality.description)}` : "Nessuna"}</td></tr>
                     </tbody>
                 </table>
+                ${this.buildToolProficiencyResultSection(roll.toolProficiencyDetails)}
                 ${this.buildInventoryResultSection("Ingredienti", context.ingredients, "🔥", "Consumati")}
                 ${this.buildInventoryResultSection(
                     "Strumenti",
@@ -1426,6 +1732,53 @@ export class CraftingService {
         }
 
         return roll.success ? "✅" : "❌";
+
+    }
+
+    private buildToolProficiencyResultSection(
+        details: CraftingToolProficiencyDetail[]
+    ): string {
+
+        if (details.length === 0) {
+            return "";
+        }
+
+        const rows = details.map(detail => {
+            const icon = detail.applied ? "✅" : "➖";
+            const status = detail.applied
+                ? `Applicato +${detail.bonus}`
+                : detail.possessed
+                    ? detail.proficient
+                        ? "Nessun bonus"
+                        : "Non competente"
+                    : "Non posseduto";
+
+            return `
+                <tr>
+                    <td>${icon}</td>
+                    <td>${this.escapeHtml(detail.name)}</td>
+                    <td>${detail.possessed ? "Sì" : "No"}</td>
+                    <td>${detail.proficient ? "Sì" : "No"}</td>
+                    <td>${this.escapeHtml(status)}</td>
+                </tr>
+            `;
+        }).join("");
+
+        return `
+            <h4>Bonus strumenti alla prova</h4>
+            <table>
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>Strumento</th>
+                        <th>Posseduto</th>
+                        <th>Competente</th>
+                        <th>Stato</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        `;
 
     }
 
