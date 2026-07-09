@@ -204,10 +204,20 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
         : null;
 
     const selectedActorProfessions = professionService.getActorProfessions(selectedActor);
+    const selectedForagingActorProfessionSummary = this.getActorProfessionInlineSummary(
+      selectedActor,
+      selectedForagingActorProfession,
+      game.i18n.localize("ARTISAN.Gathering").toLowerCase(),
+    );
+    const selectedHarvestActorProfessionSummary = this.getActorProfessionInlineSummary(
+      selectedActor,
+      selectedHarvestActorProfession,
+      game.i18n.localize("ARTISAN.Extraction").toLowerCase(),
+    );
 
     return {
       title: "Artisan",
-      subtitle: "Universal Crafting System",
+      subtitle: game.i18n.localize("ARTISAN.Subtitle"),
       explorer: explorerData,
       selectedRecipe: selectedRecipeView,
       selectedSectionId: this.selectedSectionId,
@@ -239,11 +249,13 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
       selectedForagingProfile: foragingData.selectedProfile,
       selectedForagingActorName: selectedActor?.name ?? "",
       selectedForagingActorProfession,
+      selectedForagingActorProfessionSummary,
       harvestProfiles: harvestData.profiles,
       harvestProfessionOptions: professionService.getOptions(),
       selectedHarvestProfile: harvestData.selectedProfile,
       selectedHarvestActorName: selectedActor?.name ?? "",
       selectedHarvestActorProfession,
+      selectedHarvestActorProfessionSummary,
       selectedActorName: selectedActor?.name ?? "",
       selectedActorProfessions,
       selectedActorProfessionSummary: this.getActorProfessionSummary(selectedActorProfessions),
@@ -974,30 +986,46 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 
 
+  private getActorProfessionInlineSummary(actor: Actor | null, profession: any, multiplierLabel: string): string {
+    if (!actor || !profession) {
+      return game.i18n.localize("ARTISAN.SelectActorForProfessionRead");
+    }
+
+    return game.i18n.format("ARTISAN.ActorProfessionInlineSummary", {
+      actor: actor.name ?? game.i18n.localize("ARTISAN.Actor"),
+      level: profession.level ?? 0,
+      xp: profession.xp ?? 0,
+      next: profession.xpToNextLevel ?? 0,
+      multiplierLabel,
+      multiplier: profession.gatheringMultiplierLabel ?? "x1"
+    });
+  }
+
+
   private getPresetPackages(): any[] {
     return [
       {
         id: "foraging-base",
         icon: "fa-solid fa-leaf",
-        title: "Foraging base",
-        subtitle: "Biomi pronti da riempire con risorse dei tuoi compendi.",
-        description: "Crea liste per Foresta, Montagna, Palude, Costa, Caverna e Deserto con CD, tempo, professione e massimo risorse già impostati.",
+        title: game.i18n.localize("ARTISAN.PresetForagingBaseTitle"),
+        subtitle: game.i18n.localize("ARTISAN.PresetForagingBaseSubtitle"),
+        description: game.i18n.localize("ARTISAN.PresetForagingBaseDescription"),
         entries: 6,
       },
       {
         id: "harvest-base",
         icon: "fa-solid fa-paw",
-        title: "Harvest base",
-        subtitle: "Tabelle Harvest pronte per tipi creatura comuni.",
-        description: "Crea liste per Bestie, Draghi, Non morti, Mostruosità e Vegetali. Le parti restano da collegare ai tuoi Item/compendi.",
+        title: game.i18n.localize("ARTISAN.PresetHarvestBaseTitle"),
+        subtitle: game.i18n.localize("ARTISAN.PresetHarvestBaseSubtitle"),
+        description: game.i18n.localize("ARTISAN.PresetHarvestBaseDescription"),
         entries: 5,
       },
       {
         id: "recipe-templates",
         icon: "fa-solid fa-book-open",
-        title: "Template ricette",
-        subtitle: "Ricette vuote già divise per professione.",
-        description: "Crea modelli base per Alchimista, Fabbro, Cuoco, Erborista, Conciatore e Boscaiolo, pronti per ingredienti e output.",
+        title: game.i18n.localize("ARTISAN.PresetRecipeTemplatesTitle"),
+        subtitle: game.i18n.localize("ARTISAN.PresetRecipeTemplatesSubtitle"),
+        description: game.i18n.localize("ARTISAN.PresetRecipeTemplatesDescription"),
         entries: 6,
       },
     ];
@@ -1013,11 +1041,11 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
       skipped += result.skipped;
     }
 
-    ui.notifications.info(`Pacchetti Artisan installati. Creati: ${imported}, saltati: ${skipped}.`);
+    ui.notifications.info(`${game.i18n.localize("ARTISAN.PresetInstalledAllNotice")} ${game.i18n.localize("ARTISAN.Created")}: ${imported}, ${game.i18n.localize("ARTISAN.Skipped")}: ${skipped}.`);
     await this.addActivityLogEntry(
       "import",
-      "Pacchetti Artisan installati",
-      `Installazione completa pacchetti predefiniti. Creati ${imported}, saltati ${skipped}.`,
+      game.i18n.localize("ARTISAN.PresetsInstalledTitle"),
+      `${game.i18n.localize("ARTISAN.PresetsInstalledMessage")} ${game.i18n.localize("ARTISAN.Created")}: ${imported}, ${game.i18n.localize("ARTISAN.Skipped")}: ${skipped}.`,
     );
     this.render(true);
   }
@@ -1030,7 +1058,7 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     const result = await this.installPresetPackage(presetId);
-    ui.notifications.info(`Pacchetto installato. Creati: ${result.imported}, saltati: ${result.skipped}.`);
+    ui.notifications.info(`${game.i18n.localize("ARTISAN.PresetInstalledNotice")} ${game.i18n.localize("ARTISAN.Created")}: ${result.imported}, ${game.i18n.localize("ARTISAN.Skipped")}: ${result.skipped}.`);
     this.render(true);
   }
 
@@ -1223,7 +1251,7 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const targetXp = Number(current.xpForNextLevel ?? 0);
 
       if (targetXp <= 0) {
-        ui.notifications.info("Questa professione è già al livello massimo.");
+        ui.notifications.info(game.i18n.localize("ARTISAN.ProfessionAlreadyMaxLevel"));
         return;
       }
 
@@ -1257,7 +1285,7 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
     }
 
     game.settings.register("artisan", "moduleSettings", {
-      name: "Impostazioni Artisan",
+      name: "ARTISAN.ArtisanSettings",
       scope: "world",
       config: false,
       type: Object,
@@ -1283,31 +1311,31 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
       {
         key: "enableProfessionXp",
         label: game.i18n.localize("ARTISAN.ProfessionXp"),
-        description: "Permette ad Artisan di assegnare XP professione durante Crafting, Foraging e Harvest.",
+        description: game.i18n.localize("ARTISAN.SettingProfessionXpDescription"),
         checked: settings.enableProfessionXp,
       },
       {
         key: "enableOutputQuality",
         label: game.i18n.localize("ARTISAN.CraftingOutputQuality"),
-        description: "Permette di applicare qualità agli oggetti creati in base al margine del tiro.",
+        description: game.i18n.localize("ARTISAN.SettingOutputQualityDescription"),
         checked: settings.enableOutputQuality,
       },
       {
         key: "enableToolDamage",
         label: game.i18n.localize("ARTISAN.ToolDamageOnCriticalFailure"),
-        description: "Permette a Foraging e Harvest di danneggiare o distruggere strumenti su 1 naturale.",
+        description: game.i18n.localize("ARTISAN.SettingToolDamageDescription"),
         checked: settings.enableToolDamage,
       },
       {
         key: "enableHarvestRuinRisk",
         label: game.i18n.localize("ARTISAN.HarvestRuinRisk"),
-        description: "Permette alle parti rare Harvest di rovinarsi in base alla rarità.",
+        description: game.i18n.localize("ARTISAN.SettingHarvestRuinRiskDescription"),
         checked: settings.enableHarvestRuinRisk,
       },
       {
         key: "enableActivityLog",
         label: game.i18n.localize("ARTISAN.ActivityLog"),
-        description: "Registra le attività Artisan nella sezione Registro attività.",
+        description: game.i18n.localize("ARTISAN.SettingActivityLogDescription"),
         checked: settings.enableActivityLog,
       },
     ];
@@ -1330,13 +1358,13 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
       [key]: value,
     });
 
-    ui.notifications.info("Impostazione Artisan aggiornata.");
+    ui.notifications.info(game.i18n.localize("ARTISAN.SettingUpdated"));
     this.render(true);
   }
 
   private async onResetArtisanSettingsClicked(): Promise<void> {
     await game.settings.set("artisan", "moduleSettings", this.getDefaultArtisanSettings());
-    ui.notifications.info("Impostazioni Artisan ripristinate.");
+    ui.notifications.info(game.i18n.localize("ARTISAN.SettingsReset"));
     this.render(true);
   }
 
@@ -1558,7 +1586,7 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
         recipeStatusClass: "is-locked",
         recipeStatusIcon: "fa-solid fa-lock",
         recipeStatusLabel: `${game.i18n.localize("ARTISAN.Requires")} ${professionLabel} ${requiredLevel}`,
-        recipeStatusTitle: `${actor.name}: ${professionLabel} livello ${actorLevel}. Richiesto livello ${requiredLevel}.`,
+        recipeStatusTitle: `${actor.name}: ${professionLabel} ${game.i18n.localize("ARTISAN.Level").toLowerCase()} ${actorLevel}. ${game.i18n.localize("ARTISAN.RequiredLevel")}: ${requiredLevel}.`,
         requiredProfessionLabel: professionLabel,
         requiredProfessionLevel: requiredLevel,
         actorProfessionLevel: actorLevel,
@@ -1574,8 +1602,8 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
         ? `${professionLabel} ${actorLevel}/${requiredLevel}`
         : game.i18n.localize("ARTISAN.Available"),
       recipeStatusTitle: requiredLevel > 0
-        ? `${actor.name}: requisito soddisfatto (${professionLabel} livello ${actorLevel}/${requiredLevel}).`
-        : `${actor.name}: ricetta senza requisito professione.`,
+        ? `${actor.name}: ${game.i18n.localize("ARTISAN.RequirementMet")} (${professionLabel} ${game.i18n.localize("ARTISAN.Level").toLowerCase()} ${actorLevel}/${requiredLevel}).`
+        : `${actor.name}: ${game.i18n.localize("ARTISAN.RecipeWithoutProfessionRequirement")}.`,
       requiredProfessionLabel: professionLabel,
       requiredProfessionLevel: requiredLevel,
       actorProfessionLevel: actorLevel,

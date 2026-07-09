@@ -599,10 +599,10 @@
                             <div class="artisan-inspector__field">
                                 <label>{{localize 'ARTISAN.ActorProfession'}}</label>
                                 {{#if selectedForagingActorProfession}}
-                                    <input type="text" value="{{selectedForagingActorName}} — livello {{selectedForagingActorProfession.level}}, XP {{selectedForagingActorProfession.xp}}, prossimo livello: {{selectedForagingActorProfession.xpToNextLevel}} XP, raccolta {{selectedForagingActorProfession.gatheringMultiplierLabel}}" disabled>
+                                    <input type="text" value="{{selectedForagingActorProfessionSummary}}" disabled>
                                     <small>{{localize 'ARTISAN.ForagingActorLevelHelp'}}</small>
                                 {{else}}
-                                    <input type="text" value="Seleziona un token per leggere la professione dal PG" disabled>
+                                    <input type="text" value="{{localize 'ARTISAN.SelectActorForProfessionRead'}}" disabled>
                                 {{/if}}
                             </div>
 
@@ -668,7 +668,7 @@
                                                 >
                                             </label>
 
-                                            <label class="artisan-foraging-edit-field" title="Quantità minima raccolta">
+                                            <label class="artisan-foraging-edit-field" title="{{localize 'ARTISAN.MinGatherQuantityTitle'}}">
                                                 <span>{{localize 'ARTISAN.Min'}}</span>
                                                 <input
                                                     type="number"
@@ -682,7 +682,7 @@
                                                 >
                                             </label>
 
-                                            <label class="artisan-foraging-edit-field" title="Quantità massima raccolta">
+                                            <label class="artisan-foraging-edit-field" title="{{localize 'ARTISAN.MaxGatherQuantityTitle'}}">
                                                 <span>{{localize 'ARTISAN.Max'}}</span>
                                                 <input
                                                     type="number"
@@ -731,7 +731,7 @@
                                                 <strong>{{name}}</strong>
                                                 <code>{{uuid}}</code>
                                             </div>
-                                            <span class="artisan-component-row__quantity-static" title="Bonus alla prova applicato solo se il PG possiede lo strumento ed è competente">{{quantityLabel}}</span>
+                                            <span class="artisan-component-row__quantity-static" title="{{localize 'ARTISAN.ToolProficiencyRollBonusTitle'}}">{{quantityLabel}}</span>
                                             <button type="button" class="artisan-icon-button" data-artisan-foraging-remove-component data-profile-id="{{profileId}}" data-collection="{{collection}}" data-index="{{index}}" title="{{localize 'ARTISAN.Remove'}}">
                                                 <i class="fa-solid fa-trash"></i>
                                             </button>
@@ -885,10 +885,10 @@
                             <div class="artisan-inspector__field">
                                 <label>{{localize 'ARTISAN.ActorProfession'}}</label>
                                 {{#if selectedHarvestActorProfession}}
-                                    <input type="text" value="{{selectedHarvestActorName}} — livello {{selectedHarvestActorProfession.level}}, XP {{selectedHarvestActorProfession.xp}}, prossimo livello: {{selectedHarvestActorProfession.xpToNextLevel}} XP, estrazione {{selectedHarvestActorProfession.gatheringMultiplierLabel}}" disabled>
+                                    <input type="text" value="{{selectedHarvestActorProfessionSummary}}" disabled>
                                     <small>{{localize 'ARTISAN.HarvestActorLevelHelp'}}</small>
                                 {{else}}
-                                    <input type="text" value="Seleziona un token per leggere la professione dal PG" disabled>
+                                    <input type="text" value="{{localize 'ARTISAN.SelectActorForProfessionRead'}}" disabled>
                                 {{/if}}
                             </div>
 
@@ -1075,7 +1075,7 @@
                                                 <strong>{{name}}</strong>
                                                 <code>{{uuid}}</code>
                                             </div>
-                                            <span class="artisan-component-row__quantity-static" title="Bonus alla prova applicato solo se il PG possiede lo strumento ed è competente">{{quantityLabel}}</span>
+                                            <span class="artisan-component-row__quantity-static" title="{{localize 'ARTISAN.ToolProficiencyRollBonusTitle'}}">{{quantityLabel}}</span>
                                             <button type="button" class="artisan-icon-button" data-artisan-harvest-remove-component data-profile-id="{{profileId}}" data-collection="{{collection}}" data-index="{{index}}" title="{{localize 'ARTISAN.Remove'}}">
                                                 <i class="fa-solid fa-trash"></i>
                                             </button>
@@ -1178,7 +1178,7 @@
                                 </label>
 
                                 <label>
-                                    <span>XP</span>
+                                    <span>{{localize 'ARTISAN.Xp'}}</span>
                                     <small>{{localize 'ARTISAN.XpLevelUpdates'}}</small>
                                     <input
                                         type="number"
@@ -1196,7 +1196,7 @@
                                         <span style="width: {{progressPercent}}%;"></span>
                                     </div>
                                     {{#if xpForNextLevel}}
-                                        <small>{{xp}} / {{xpForNextLevel}} XP · {{localize 'ARTISAN.Missing'}} {{xpToNextLevel}} XP</small>
+                                        <small>{{xp}} / {{xpForNextLevel}} {{localize 'ARTISAN.Xp'}} · {{localize 'ARTISAN.Missing'}} {{xpToNextLevel}} {{localize 'ARTISAN.Xp'}}</small>
                                     {{else}}
                                         <small>{{localize 'ARTISAN.MaxLevelReached'}}</small>
                                     {{/if}}
@@ -1206,7 +1206,7 @@
                                     <button type="button" class="artisan-small-button" data-artisan-profession-xp-action data-action="add10" data-profession-id="{{id}}">+10 XP</button>
                                     <button type="button" class="artisan-small-button" data-artisan-profession-xp-action data-action="add50" data-profession-id="{{id}}">+50 XP</button>
                                     <button type="button" class="artisan-small-button" data-artisan-profession-xp-action data-action="next" data-profession-id="{{id}}">{{localize 'ARTISAN.NextLevel'}}</button>
-                                    <button type="button" class="artisan-small-button artisan-danger-button" data-artisan-profession-xp-action data-action="reset" data-profession-id="{{id}}">Reset XP</button>
+                                    <button type="button" class="artisan-small-button artisan-danger-button" data-artisan-profession-xp-action data-action="reset" data-profession-id="{{id}}">{{localize 'ARTISAN.ResetXp'}}</button>
                                 </div>
                             </article>
                         {{/each}}
@@ -1309,7 +1309,7 @@
                             <div class="artisan-preset-card__body">
                                 <header>
                                     <h3>{{title}}</h3>
-                                    <span>{{entries}} elementi</span>
+                                    <span>{{entries}} {{localize 'ARTISAN.Elements'}}</span>
                                 </header>
 
                                 <strong>{{subtitle}}</strong>

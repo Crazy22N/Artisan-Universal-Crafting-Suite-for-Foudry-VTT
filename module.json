@@ -24,6 +24,11 @@
       "lang": "it",
       "name": "Italiano",
       "path": "lang/it.json"
+    },
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
     }
   ],
   "manifest": "https://github.com/Crazy22N/Artisan-Universal-Crafting-Suite-for-Foudry-VTT/releases/latest/download/module.json",

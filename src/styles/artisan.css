@@ -1912,3 +1912,150 @@
         font-size: 20px;
     }
 }
+
+/* 0103 - Complete help guide layout */
+.artisan-help-dialog-window .window-content,
+.dialog.artisan-help-dialog-window .window-content {
+    background: #f7f2e9 !important;
+    color: #2b241a !important;
+}
+
+.artisan-help-dialog--full {
+    gap: 16px;
+}
+
+.artisan-help-dialog__toc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid rgba(95, 67, 37, 0.18);
+    border-radius: 10px;
+    background: #fffaf0;
+}
+
+.artisan-help-dialog__toc a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 5px 10px;
+    border: 1px solid rgba(95, 67, 37, 0.22);
+    border-radius: 999px;
+    background: #f0e2cc;
+    color: #3b2814 !important;
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.artisan-help-dialog__toc a:hover {
+    background: #e5cfad;
+}
+
+.artisan-help-dialog__steps {
+    display: grid;
+    gap: 6px;
+}
+
+.artisan-help-dialog__mini-grid,
+.artisan-help-dialog__split {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.artisan-help-dialog__mini-card {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 12px;
+    border: 1px solid rgba(95, 67, 37, 0.2);
+    border-radius: 10px;
+    background: #fffdf7;
+}
+
+.artisan-help-dialog__mini-card strong,
+.artisan-help-dialog__split h4 {
+    color: #573715;
+    font-size: 13px;
+    line-height: 1.25;
+}
+
+.artisan-help-dialog__mini-card span {
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.artisan-help-dialog__card {
+    border: 1px solid rgba(95, 67, 37, 0.22);
+    border-radius: 10px;
+    background: #fffaf0;
+    padding: 14px;
+}
+
+.artisan-help-dialog__split > article {
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid rgba(95, 67, 37, 0.18);
+    border-radius: 10px;
+    background: #fffdf7;
+}
+
+.artisan-help-dialog__split h4 {
+    margin: 0 0 8px;
+}
+
+.artisan-help-dialog__table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 8px;
+    font-size: 12px;
+    color: #2b241a;
+}
+
+.artisan-help-dialog__table th,
+.artisan-help-dialog__table td {
+    padding: 6px 8px;
+    border: 1px solid rgba(95, 67, 37, 0.22);
+    text-align: left;
+    vertical-align: top;
+}
+
+.artisan-help-dialog__table th {
+    background: #eadbc2;
+    color: #3b2814;
+}
+
+.artisan-help-dialog__table td {
+    background: #fffaf0;
+}
+
+.artisan-help-dialog__table--compact td,
+.artisan-help-dialog__table--compact th {
+    padding: 5px 7px;
+}
+
+.artisan-help-dialog__warning {
+    background: #fff4df;
+    border-color: rgba(178, 102, 24, 0.34);
+}
+
+.artisan-help-dialog__warning h3 {
+    color: #7a3c10;
+}
+
+@media (max-width: 780px) {
+    .artisan-help-dialog__mini-grid,
+    .artisan-help-dialog__split {
+        grid-template-columns: 1fr;
+    }
+
+    .artisan-help-dialog__toc {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .artisan-help-dialog__toc a {
+        justify-content: center;
+    }
+}

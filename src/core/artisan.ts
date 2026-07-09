@@ -149,8 +149,27 @@ export class Artisan {
             return keys.map(key => `<li>${l(key)}</li>`).join("");
         };
 
+        const card = (icon: string, titleKey: string, textKey: string, bulletKeys: string[]): string => {
+            return `
+                <article class="artisan-help-dialog__card">
+                    <h3><i class="${icon}"></i> ${l(titleKey)}</h3>
+                    <p>${l(textKey)}</p>
+                    <ul>${list(bulletKeys)}</ul>
+                </article>
+            `;
+        };
+
+        const mini = (titleKey: string, textKey: string): string => {
+            return `
+                <article class="artisan-help-dialog__mini-card">
+                    <strong>${l(titleKey)}</strong>
+                    <span>${l(textKey)}</span>
+                </article>
+            `;
+        };
+
         return `
-            <article class="artisan-help-dialog">
+            <article class="artisan-help-dialog artisan-help-dialog--full">
                 <header class="artisan-help-dialog__hero">
                     <div class="artisan-help-dialog__icon"><i class="fa-solid fa-hammer"></i></div>
                     <div>
@@ -159,61 +178,145 @@ export class Artisan {
                     </div>
                 </header>
 
-                <section class="artisan-help-dialog__section">
+                <nav class="artisan-help-dialog__toc" aria-label="Artisan help navigation">
+                    <a href="#artisan-help-start">${l("ARTISAN.HelpDialogStartTitle")}</a>
+                    <a href="#artisan-help-crafting">${l("ARTISAN.HelpCraftingTitle")}</a>
+                    <a href="#artisan-help-foraging">${l("ARTISAN.HelpForagingTitle")}</a>
+                    <a href="#artisan-help-harvest">${l("ARTISAN.HelpHarvestTitle")}</a>
+                    <a href="#artisan-help-professions">${l("ARTISAN.HelpProfessionsTitle")}</a>
+                    <a href="#artisan-help-data">${l("ARTISAN.HelpDialogDataTitle")}</a>
+                </nav>
+
+                <section id="artisan-help-start" class="artisan-help-dialog__section">
                     <h3><i class="fa-solid fa-play"></i> ${l("ARTISAN.HelpDialogStartTitle")}</h3>
-                    <ol>${list([
+                    <ol class="artisan-help-dialog__steps">${list([
                         "ARTISAN.HelpDialogStart1",
                         "ARTISAN.HelpDialogStart2",
                         "ARTISAN.HelpDialogStart3",
-                        "ARTISAN.HelpDialogStart4"
+                        "ARTISAN.HelpDialogStart4",
+                        "ARTISAN.HelpDialogStart5",
+                        "ARTISAN.HelpDialogStart6"
                     ])}</ol>
                 </section>
 
-                <section class="artisan-help-dialog__grid">
-                    <article>
-                        <h3><i class="fa-solid fa-book"></i> ${l("ARTISAN.HelpCraftingTitle")}</h3>
-                        <p>${l("ARTISAN.HelpDialogCraftingText")}</p>
-                        <ul>${list([
-                            "ARTISAN.HelpDialogCrafting1",
-                            "ARTISAN.HelpDialogCrafting2",
-                            "ARTISAN.HelpDialogCrafting3"
-                        ])}</ul>
-                    </article>
-
-                    <article>
-                        <h3><i class="fa-solid fa-leaf"></i> ${l("ARTISAN.HelpForagingTitle")}</h3>
-                        <p>${l("ARTISAN.HelpDialogForagingText")}</p>
-                        <ul>${list([
-                            "ARTISAN.HelpDialogForaging1",
-                            "ARTISAN.HelpDialogForaging2",
-                            "ARTISAN.HelpDialogForaging3"
-                        ])}</ul>
-                    </article>
-
-                    <article>
-                        <h3><i class="fa-solid fa-paw"></i> ${l("ARTISAN.HelpHarvestTitle")}</h3>
-                        <p>${l("ARTISAN.HelpDialogHarvestText")}</p>
-                        <ul>${list([
-                            "ARTISAN.HelpDialogHarvest1",
-                            "ARTISAN.HelpDialogHarvest2",
-                            "ARTISAN.HelpDialogHarvest3"
-                        ])}</ul>
-                    </article>
-
-                    <article>
-                        <h3><i class="fa-solid fa-user-gear"></i> ${l("ARTISAN.HelpProfessionsTitle")}</h3>
-                        <p>${l("ARTISAN.HelpDialogProfessionsText")}</p>
-                        <ul>${list([
-                            "ARTISAN.HelpDialogProfessions1",
-                            "ARTISAN.HelpDialogProfessions2",
-                            "ARTISAN.HelpDialogProfessions3"
-                        ])}</ul>
-                    </article>
+                <section class="artisan-help-dialog__mini-grid">
+                    ${mini("ARTISAN.HelpMiniActorTitle", "ARTISAN.HelpMiniActorText")}
+                    ${mini("ARTISAN.HelpMiniItemsTitle", "ARTISAN.HelpMiniItemsText")}
+                    ${mini("ARTISAN.HelpMiniToolsTitle", "ARTISAN.HelpMiniToolsText")}
+                    ${mini("ARTISAN.HelpMiniBackupTitle", "ARTISAN.HelpMiniBackupText")}
                 </section>
 
-                <section class="artisan-help-dialog__section artisan-help-dialog__note">
+                <section id="artisan-help-crafting" class="artisan-help-dialog__section">
+                    <h3><i class="fa-solid fa-book"></i> ${l("ARTISAN.HelpCraftingTitle")}</h3>
+                    <p>${l("ARTISAN.HelpDialogCraftingText")}</p>
+                    <div class="artisan-help-dialog__split">
+                        <article>
+                            <h4>${l("ARTISAN.HelpRecipeSetupTitle")}</h4>
+                            <ul>${list([
+                                "ARTISAN.HelpDialogCrafting1",
+                                "ARTISAN.HelpDialogCrafting2",
+                                "ARTISAN.HelpDialogCrafting3",
+                                "ARTISAN.HelpCraftingToolsBonus",
+                                "ARTISAN.HelpCraftingXp"
+                            ])}</ul>
+                        </article>
+                        <article>
+                            <h4>${l("ARTISAN.HelpOutputQualityTitle")}</h4>
+                            <table class="artisan-help-dialog__table">
+                                <tbody>
+                                    <tr><th>${l("ARTISAN.HelpRollResult")}</th><th>${l("ARTISAN.HelpEffect")}</th></tr>
+                                    <tr><td>${l("ARTISAN.HelpQualityNormalRange")}</td><td>${l("ARTISAN.HelpQualityNormal")}</td></tr>
+                                    <tr><td>${l("ARTISAN.HelpQualityGoodRange")}</td><td>${l("ARTISAN.HelpQualityGood")}</td></tr>
+                                    <tr><td>${l("ARTISAN.HelpQualitySuperiorRange")}</td><td>${l("ARTISAN.HelpQualitySuperior")}</td></tr>
+                                    <tr><td>${l("ARTISAN.HelpQualityExcellentRange")}</td><td>${l("ARTISAN.HelpQualityExcellent")}</td></tr>
+                                </tbody>
+                            </table>
+                        </article>
+                    </div>
+                </section>
+
+                <section id="artisan-help-foraging" class="artisan-help-dialog__section">
+                    <h3><i class="fa-solid fa-leaf"></i> ${l("ARTISAN.HelpForagingTitle")}</h3>
+                    <p>${l("ARTISAN.HelpDialogForagingText")}</p>
+                    <div class="artisan-help-dialog__grid">
+                        ${card("fa-solid fa-map", "ARTISAN.HelpForagingListsTitle", "ARTISAN.HelpForagingListsText", [
+                            "ARTISAN.HelpDialogForaging1",
+                            "ARTISAN.HelpForagingMixedResources",
+                            "ARTISAN.HelpForagingMaxResources"
+                        ])}
+                        ${card("fa-solid fa-dice-d20", "ARTISAN.HelpForagingRollTitle", "ARTISAN.HelpForagingRollText", [
+                            "ARTISAN.HelpDialogForaging2",
+                            "ARTISAN.HelpDialogForaging3",
+                            "ARTISAN.HelpForagingCrits"
+                        ])}
+                    </div>
+                </section>
+
+                <section id="artisan-help-harvest" class="artisan-help-dialog__section">
+                    <h3><i class="fa-solid fa-paw"></i> ${l("ARTISAN.HelpHarvestTitle")}</h3>
+                    <p>${l("ARTISAN.HelpDialogHarvestText")}</p>
+                    <div class="artisan-help-dialog__grid">
+                        ${card("fa-solid fa-layer-group", "ARTISAN.HelpHarvestPartsTitle", "ARTISAN.HelpHarvestPartsText", [
+                            "ARTISAN.HelpDialogHarvest1",
+                            "ARTISAN.HelpDialogHarvest2",
+                            "ARTISAN.HelpHarvestCreatureType"
+                        ])}
+                        ${card("fa-solid fa-screwdriver-wrench", "ARTISAN.HelpHarvestToolsTitle", "ARTISAN.HelpHarvestToolsText", [
+                            "ARTISAN.HelpDialogHarvest3",
+                            "ARTISAN.HelpHarvestConsumableTools",
+                            "ARTISAN.HelpHarvestNoTarget"
+                        ])}
+                    </div>
+                </section>
+
+                <section id="artisan-help-professions" class="artisan-help-dialog__section">
+                    <h3><i class="fa-solid fa-user-gear"></i> ${l("ARTISAN.HelpProfessionsTitle")}</h3>
+                    <p>${l("ARTISAN.HelpDialogProfessionsText")}</p>
+                    <div class="artisan-help-dialog__split">
+                        <article>
+                            <h4>${l("ARTISAN.HelpProfessionRulesTitle")}</h4>
+                            <ul>${list([
+                                "ARTISAN.HelpDialogProfessions1",
+                                "ARTISAN.HelpDialogProfessions2",
+                                "ARTISAN.HelpDialogProfessions3",
+                                "ARTISAN.HelpProfessionLevelSource"
+                            ])}</ul>
+                        </article>
+                        <article>
+                            <h4>${l("ARTISAN.HelpProfessionThresholdsTitle")}</h4>
+                            <table class="artisan-help-dialog__table artisan-help-dialog__table--compact">
+                                <tbody>
+                                    <tr><th>${l("ARTISAN.Level")}</th><th>${l("ARTISAN.XP")}</th><th>${l("ARTISAN.Gathering")}</th></tr>
+                                    <tr><td>0</td><td>0</td><td>x1</td></tr>
+                                    <tr><td>1</td><td>100</td><td>x1,2</td></tr>
+                                    <tr><td>2</td><td>500</td><td>x1,5</td></tr>
+                                    <tr><td>3</td><td>1500</td><td>x2</td></tr>
+                                    <tr><td>4</td><td>3000</td><td>x2,5</td></tr>
+                                    <tr><td>5</td><td>5000</td><td>x3</td></tr>
+                                </tbody>
+                            </table>
+                        </article>
+                    </div>
+                </section>
+
+                <section id="artisan-help-data" class="artisan-help-dialog__section artisan-help-dialog__note">
                     <h3><i class="fa-solid fa-floppy-disk"></i> ${l("ARTISAN.HelpDialogDataTitle")}</h3>
                     <p>${l("ARTISAN.HelpDialogDataText")}</p>
+                    <ul>${list([
+                        "ARTISAN.HelpBackup1",
+                        "ARTISAN.HelpBackup2",
+                        "ARTISAN.HelpBackup3"
+                    ])}</ul>
+                </section>
+
+                <section class="artisan-help-dialog__section artisan-help-dialog__warning">
+                    <h3><i class="fa-solid fa-triangle-exclamation"></i> ${l("ARTISAN.HelpTroubleshootingTitle")}</h3>
+                    <ul>${list([
+                        "ARTISAN.HelpTroubleshooting1",
+                        "ARTISAN.HelpTroubleshooting2",
+                        "ARTISAN.HelpTroubleshooting3",
+                        "ARTISAN.HelpTroubleshooting4"
+                    ])}</ul>
                 </section>
             </article>
         `;
