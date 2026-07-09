@@ -20,7 +20,7 @@ Artisan è un modulo per Foundry VTT v14 dedicato a crafting, raccolta, harvest 
 
 ## Installazione manuale
 
-1. Scarica `artisan-v1.0.0.zip` dalla release GitHub.
+1. Scarica `artisan-v1.1.0.zip` dalla release GitHub.
 2. Estrai la cartella `artisan` dentro `Data/modules/` di Foundry.
 3. Riavvia Foundry e abilita il modulo nel mondo.
 

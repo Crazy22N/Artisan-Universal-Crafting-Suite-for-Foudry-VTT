@@ -1,6 +1,6 @@
 {
   "name": "artisan",
-  "version": "0.0.1",
+  "version": "1.1.0",
   "description": "Artisan - Universal Crafting Suite for Foundry VTT",
   "private": true,
   "type": "module",
