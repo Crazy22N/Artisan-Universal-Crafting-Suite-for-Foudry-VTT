@@ -109,6 +109,13 @@ interface CraftingOutputQuality {
     description: string;
 }
 
+interface CraftingQualityModification {
+    bonus: number;
+    dice: string;
+    effectType: string;
+    preferredPath: string;
+}
+
 export class CraftingService {
 
     private readonly repository = new RecipeRepository();
@@ -217,13 +224,10 @@ export class CraftingService {
                 actor,
                 recipeItem,
                 validation,
-                [
-                    ...context.ingredients.filter(match => !match.sufficient),
-                    ...context.tools.filter(match => !match.sufficient)
-                ]
+                this.getBlockingMissingMatches(context)
             );
 
-            ui.notifications.warn("Crafting non eseguibile: ingredienti o strumenti insufficienti.");
+            ui.notifications.warn("Crafting non eseguibile: ingredienti o strumenti obbligatori insufficienti.");
             return;
         }
 
@@ -249,10 +253,7 @@ export class CraftingService {
             maxLots
         );
 
-        const missing = [
-            ...context.ingredients.filter(match => !match.sufficient),
-            ...context.tools.filter(match => !match.sufficient)
-        ];
+        const missing = this.getBlockingMissingMatches(context);
 
         if (missing.length > 0) {
             await this.sendCraftingBlockedToChat(
@@ -281,7 +282,9 @@ export class CraftingService {
 
         await this.consumeIngredients(context);
 
-        if (roll.criticalFailure) {
+        const criticalFailureToolDamageEnabled = this.isRecipeToolCriticalDamageEnabled(validation.recipeData);
+
+        if (roll.criticalFailure && criticalFailureToolDamageEnabled) {
             await this.destroyTools(context);
         }
 
@@ -321,7 +324,11 @@ export class CraftingService {
         }
 
         if (roll.criticalFailure) {
-            ui.notifications.error("Fallimento critico: strumenti distrutti.");
+            ui.notifications.error(
+                criticalFailureToolDamageEnabled
+                    ? "Fallimento critico: strumenti distrutti."
+                    : "Fallimento critico: danno strumenti disattivato."
+            );
             return;
         }
 
@@ -598,11 +605,13 @@ export class CraftingService {
 
         const toolEntries = validation.entries.filter(entry => entry.collection === "tools");
 
-        for (const tool of toolEntries) {
-            const match = this.buildActorInventoryMatch(actor, tool, 1);
+        if (this.getRecipeToolRequirement(validation.recipeData) === "required") {
+            for (const tool of toolEntries) {
+                const match = this.buildActorInventoryMatch(actor, tool, 1);
 
-            if (!match.sufficient) {
-                return 0;
+                if (!match.sufficient) {
+                    return 0;
+                }
             }
         }
 
@@ -772,6 +781,29 @@ export class CraftingService {
 
     }
 
+    private getRecipeToolRequirement(recipe: ArtisanRecipeData): "required" | "optional" {
+
+        return String((recipe as any).toolRequirement || "optional") === "required"
+            ? "required"
+            : "optional";
+
+    }
+
+    private getBlockingMissingMatches(context: CraftingExecutionContext): ActorInventoryMatch[] {
+
+        const missingIngredients = context.ingredients.filter(match => !match.sufficient);
+
+        const missingRequiredTools = this.getRecipeToolRequirement(context.validation.recipeData) === "required"
+            ? context.tools.filter(match => !match.sufficient)
+            : [];
+
+        return [
+            ...missingIngredients,
+            ...missingRequiredTools
+        ];
+
+    }
+
     private async consumeIngredients(context: CraftingExecutionContext): Promise<void> {
 
         for (const match of context.ingredients) {
@@ -784,6 +816,32 @@ export class CraftingService {
                 match.afterQuantity
             );
         }
+
+    }
+
+    private isRecipeToolCriticalDamageEnabled(recipe: ArtisanRecipeData): boolean {
+
+        return Boolean((recipe as any).toolCriticalDamage ?? false);
+
+    }
+
+    private getArtisanModuleSetting(key: string, defaultValue: boolean): boolean {
+
+        try {
+            const settings = game.settings.get("artisan", "moduleSettings") as any;
+
+            if (settings && typeof settings[key] === "boolean") {
+                return settings[key];
+            }
+
+            if (settings && typeof settings.enableToolDamage === "boolean") {
+                return settings.enableToolDamage;
+            }
+        } catch (_error) {
+            return defaultValue;
+        }
+
+        return defaultValue;
 
     }
 
@@ -845,6 +903,16 @@ export class CraftingService {
 
             data.system.quantity = quantity;
 
+            const qualityModification = this.getQualityModification(
+                context.validation.recipeData,
+                quality
+            );
+
+            const qualityModifiedPaths = this.applyQualityModificationToItemData(
+                data,
+                qualityModification
+            );
+
             if (quality.key !== "normal") {
                 data.name = `${data.name ?? output.name} (${quality.label})`;
             }
@@ -856,7 +924,12 @@ export class CraftingService {
                 sourceUuid: output.uuid,
                 craftingQuality: quality.key,
                 craftingQualityLabel: quality.label,
-                craftingQualityMargin: quality.margin
+                craftingQualityMargin: quality.margin,
+                craftingQualityFormulaBonus: qualityModification.bonus,
+                craftingQualityDice: qualityModification.dice,
+                craftingQualityEffectType: qualityModification.effectType,
+                craftingQualityFormulaPath: qualityModification.preferredPath,
+                craftingQualityModifiedPaths: qualityModifiedPaths
             };
 
             await context.actor.createEmbeddedDocuments(
@@ -864,6 +937,333 @@ export class CraftingService {
                 [data]
             );
         }
+
+    }
+
+    private getQualityModification(
+        recipe: ArtisanRecipeData,
+        quality: CraftingOutputQuality
+    ): CraftingQualityModification {
+
+        let bonus = 0;
+        let dice = "";
+        let effectType = "auto";
+
+        if (quality.key === "good") {
+            bonus = Math.max(0, Math.floor(Number((recipe as any).qualityBonusGood ?? 0)));
+            dice = this.normalizeQualityDice((recipe as any).qualityDiceGood ?? "");
+            effectType = this.normalizeQualityEffectType((recipe as any).qualityEffectGood ?? "auto");
+        } else if (quality.key === "superior") {
+            bonus = Math.max(0, Math.floor(Number((recipe as any).qualityBonusSuperior ?? 0)));
+            dice = this.normalizeQualityDice((recipe as any).qualityDiceSuperior ?? "");
+            effectType = this.normalizeQualityEffectType((recipe as any).qualityEffectSuperior ?? "auto");
+        } else if (quality.key === "excellent") {
+            bonus = Math.max(0, Math.floor(Number((recipe as any).qualityBonusExcellent ?? 0)));
+            dice = this.normalizeQualityDice((recipe as any).qualityDiceExcellent ?? "");
+            effectType = this.normalizeQualityEffectType((recipe as any).qualityEffectExcellent ?? "auto");
+        }
+
+        return {
+            bonus,
+            dice,
+            effectType,
+            preferredPath: String((recipe as any).qualityFormulaPath ?? "").trim()
+        };
+
+    }
+
+    private applyQualityModificationToItemData(
+        data: any,
+        modification: CraftingQualityModification
+    ): string[] {
+
+        if (!data || (!modification.bonus && !modification.dice)) {
+            return [];
+        }
+
+        const appliedPaths: string[] = [];
+
+        if (modification.preferredPath) {
+            if (this.applyQualityEffectAtPath(data, modification.preferredPath, modification)) {
+                appliedPaths.push(modification.preferredPath);
+                return appliedPaths;
+            }
+        }
+
+        appliedPaths.push(...this.applyAutomaticQualityEffect(data, modification));
+
+        if (appliedPaths.length > 0) {
+            this.applyQualityDamageType(data, modification, appliedPaths);
+        }
+
+        return appliedPaths;
+
+    }
+
+    private applyAutomaticQualityEffect(
+        data: any,
+        modification: CraftingQualityModification
+    ): string[] {
+
+        const appliedPaths: string[] = [];
+        const effectType = modification.effectType;
+        const wantsHealing = effectType === "healing";
+        const wantsDamage = this.isDamageEffectType(effectType);
+        const activities = data?.system?.activities;
+
+        if (activities && typeof activities === "object") {
+            for (const [activityId, activity] of Object.entries<any>(activities)) {
+                const candidatePaths = wantsHealing
+                    ? [
+                        `system.activities.${activityId}.healing.bonus`,
+                        `system.activities.${activityId}.healing.formula`
+                    ]
+                    : wantsDamage
+                        ? [
+                            `system.activities.${activityId}.damage.formula`,
+                            `system.activities.${activityId}.damage.parts.0.0`
+                        ]
+                        : [
+                            `system.activities.${activityId}.healing.bonus`,
+                            `system.activities.${activityId}.healing.formula`,
+                            `system.activities.${activityId}.damage.formula`,
+                            `system.activities.${activityId}.damage.parts.0.0`
+                        ];
+
+                for (const path of candidatePaths) {
+                    if (this.applyQualityEffectAtPath(data, path, modification)) {
+                        appliedPaths.push(path);
+                        return appliedPaths;
+                    }
+                }
+            }
+        }
+
+        const fallbackPaths = wantsHealing
+            ? [
+                "system.healing.bonus",
+                "system.healing.formula",
+                "system.formula"
+            ]
+            : wantsDamage
+                ? [
+                    "system.damage.parts.0.0",
+                    "system.damage.formula",
+                    "system.formula"
+                ]
+                : [
+                    "system.healing.bonus",
+                    "system.healing.formula",
+                    "system.damage.parts.0.0",
+                    "system.damage.formula",
+                    "system.formula"
+                ];
+
+        for (const path of fallbackPaths) {
+            if (this.applyQualityEffectAtPath(data, path, modification)) {
+                appliedPaths.push(path);
+                break;
+            }
+        }
+
+        return appliedPaths;
+
+    }
+
+    private applyQualityEffectAtPath(
+        data: any,
+        path: string,
+        modification: CraftingQualityModification
+    ): boolean {
+
+        const current = foundry.utils.getProperty(data, path);
+
+        if (typeof current === "number") {
+            foundry.utils.setProperty(data, path, current + modification.bonus);
+            return modification.bonus > 0;
+        }
+
+        if (typeof current === "string") {
+            const trimmed = current.trim();
+
+            if (!trimmed && !modification.dice) {
+                return false;
+            }
+
+            let updated = trimmed;
+
+            if (modification.dice) {
+                updated = this.addDiceToFormula(updated, modification.dice);
+            }
+
+            if (modification.bonus > 0) {
+                updated = this.addFlatBonusToFormula(updated, modification.bonus);
+            }
+
+            if (updated !== trimmed && updated.trim().length > 0) {
+                foundry.utils.setProperty(data, path, updated);
+                return true;
+            }
+        }
+
+        return false;
+
+    }
+
+    private applyQualityDamageType(
+        data: any,
+        modification: CraftingQualityModification,
+        appliedPaths: string[]
+    ): void {
+
+        if (!this.isDamageEffectType(modification.effectType)) {
+            return;
+        }
+
+        for (const path of appliedPaths) {
+            if (path.includes(".damage.parts.")) {
+                const typePath = path.replace(/\.0$/, ".1");
+                foundry.utils.setProperty(data, typePath, modification.effectType);
+                continue;
+            }
+
+            const activityMatch = path.match(/^system\.activities\.([^\.]+)\.damage\./);
+
+            if (activityMatch) {
+                const activityId = activityMatch[1];
+                const partsPath = `system.activities.${activityId}.damage.parts`;
+                const parts = foundry.utils.getProperty(data, partsPath);
+
+                if (Array.isArray(parts) && Array.isArray(parts[0])) {
+                    parts[0][1] = modification.effectType;
+                    foundry.utils.setProperty(data, partsPath, parts);
+                }
+            }
+        }
+
+    }
+
+    private normalizeQualityDice(value: unknown): string {
+
+        const raw = String(value ?? "").trim().toLowerCase();
+
+        if (!raw) {
+            return "";
+        }
+
+        const cleaned = raw.replace(/\s+/g, "");
+
+        if (/^\d*d\d+(kh\d+|kl\d+|ro?<?\d+|mi\d+|ma\d+)?$/i.test(cleaned)) {
+            return cleaned;
+        }
+
+        if (/^\d+d\d+$/i.test(cleaned)) {
+            return cleaned;
+        }
+
+        return "";
+
+    }
+
+    private normalizeQualityEffectType(value: unknown): string {
+
+        const raw = String(value ?? "auto").trim().toLowerCase();
+
+        const allowed = new Set([
+            "auto",
+            "healing",
+            "acid",
+            "fire",
+            "poison",
+            "cold",
+            "lightning",
+            "thunder",
+            "necrotic",
+            "radiant",
+            "psychic",
+            "force",
+            "bludgeoning",
+            "piercing",
+            "slashing"
+        ]);
+
+        return allowed.has(raw) ? raw : "auto";
+
+    }
+
+    private isDamageEffectType(value: string): boolean {
+
+        return [
+            "acid",
+            "fire",
+            "poison",
+            "cold",
+            "lightning",
+            "thunder",
+            "necrotic",
+            "radiant",
+            "psychic",
+            "force",
+            "bludgeoning",
+            "piercing",
+            "slashing"
+        ].includes(value);
+
+    }
+
+    private addDiceToFormula(
+        formula: string,
+        dice: string
+    ): string {
+
+        const cleanDice = this.normalizeQualityDice(dice);
+
+        if (!cleanDice) {
+            return formula;
+        }
+
+        const cleaned = formula.trim();
+
+        if (!cleaned) {
+            return cleanDice;
+        }
+
+        return `${cleaned} + ${cleanDice}`;
+
+    }
+
+    private addFlatBonusToFormula(
+        formula: string,
+        bonus: number
+    ): string {
+
+        const cleaned = formula.trim();
+
+        if (!cleaned) {
+            return bonus > 0 ? String(bonus) : formula;
+        }
+
+        const terminalFlatBonus = cleaned.match(/^(.*?)([+\-])\s*(\d+)\s*$/);
+
+        if (terminalFlatBonus) {
+            const prefix = terminalFlatBonus[1].trimEnd();
+            const sign = terminalFlatBonus[2];
+            const value = Number(terminalFlatBonus[3]);
+            const signedValue = sign === "-" ? -value : value;
+            const nextValue = signedValue + bonus;
+
+            if (nextValue === 0) {
+                return prefix.trim();
+            }
+
+            return `${prefix} ${nextValue >= 0 ? "+" : "-"} ${Math.abs(nextValue)}`;
+        }
+
+        if (/\d*d\d+/i.test(cleaned) || /^\d+$/.test(cleaned)) {
+            return `${cleaned} + ${bonus}`;
+        }
+
+        return formula;
 
     }
 
@@ -1646,14 +2046,21 @@ export class CraftingService {
         roll: CraftingRollResult
     ): number {
 
-        const requiredLevel = Math.max(
-            0,
-            Math.floor(Number(context.professionRequirement.requiredLevel ?? 0))
-        );
-
         const lotMultiplier = Math.max(1, Math.floor(Number(context.lots ?? 1)));
 
-        const baseXp = Math.max(1, requiredLevel + 1) * lotMultiplier;
+        const recipeCraftingXp = Math.max(
+            0,
+            Math.floor(Number((context.validation.recipeData as any).craftingXp ?? 0))
+        );
+
+        const baseXpPerLot = recipeCraftingXp > 0
+            ? recipeCraftingXp
+            : Math.max(
+                1,
+                Math.floor(Number(context.professionRequirement.requiredLevel ?? 0)) + 1
+            );
+
+        const baseXp = baseXpPerLot * lotMultiplier;
 
         return roll.criticalSuccess
             ? baseXp * 2
@@ -1687,6 +2094,7 @@ export class CraftingService {
                     Professione PG: livello ${professionXp.beforeLevel} → ${professionXp.afterLevel}${professionXp.afterLevel > professionXp.beforeLevel ? " ⭐ Avanzamento" : ""}<br>
                     XP professione: ${professionXp.beforeXp} → ${professionXp.afterXp}<br>
                     XP professione guadagnata: +${professionXp.gained}<br>
+                    XP ricetta per lotto: ${Math.max(0, Math.floor(Number((context.validation.recipeData as any).craftingXp ?? 0))) || "automatici"}<br>
                     Prossimo livello: ${professionXp.xpForNextLevel === null ? "Livello massimo" : `${professionXp.xpToNextLevel} XP mancanti (${professionXp.progressPercent}%)`}
                 </p>
                 <table>
@@ -1700,6 +2108,7 @@ export class CraftingService {
                         <tr><td><strong>CD</strong></td><td>${roll.dc}</td></tr>
                         <tr><td><strong>Margine</strong></td><td>${roll.success ? outputQuality.margin : "—"}</td></tr>
                         <tr><td><strong>Qualità output</strong></td><td>${roll.success ? `${this.escapeHtml(outputQuality.label)} — ${this.escapeHtml(outputQuality.description)}` : "Nessuna"}</td></tr>
+                        <tr><td><strong>Bonus qualità formula</strong></td><td>${roll.success ? this.getQualityModification(context.validation.recipeData, outputQuality).bonus > 0 ? `+${this.getQualityModification(context.validation.recipeData, outputQuality).bonus}${this.getQualityModification(context.validation.recipeData, outputQuality).preferredPath ? ` su ${this.escapeHtml(this.getQualityModification(context.validation.recipeData, outputQuality).preferredPath)}` : " automatico"}` : "Nessuno" : "Nessuno"}</td></tr>
                     </tbody>
                 </table>
                 ${this.buildToolProficiencyResultSection(roll.toolProficiencyDetails)}
@@ -1708,7 +2117,11 @@ export class CraftingService {
                     "Strumenti",
                     context.tools,
                     roll.criticalFailure ? "💥" : "🛠️",
-                    roll.criticalFailure ? "Distrutti" : "Non consumati"
+                    roll.criticalFailure
+                        ? this.isRecipeToolCriticalDamageEnabled(context.validation.recipeData)
+                            ? "Distrutti"
+                            : "Protetti: danno disattivato"
+                        : "Non consumati"
                 )}
                 ${this.buildOutputResultSection(context.outputs, context.lots, roll.success ? (roll.criticalSuccess ? 2 : 1) : 0, outputIcon, outputStatus, outputQuality)}
             </div>
@@ -1933,6 +2346,8 @@ export class CraftingService {
                         <tr><td><strong>Abilità</strong></td><td>${this.escapeHtml(recipe.skill || "Non impostata")}</td></tr>
                         <tr><td><strong>CD</strong></td><td>${recipe.dc}</td></tr>
                         <tr><td><strong>Tempo</strong></td><td>${recipe.craftingTime} minuti</td></tr>
+                        <tr><td><strong>XP crafting</strong></td><td>${Math.max(0, Math.floor(Number((recipe as any).craftingXp ?? 0))) || "Automatici"}</td></tr>
+                        <tr><td><strong>Strumenti</strong></td><td>${this.getRecipeToolRequirement(recipe) === "required" ? "Obbligatori" : "Opzionali / solo bonus se competente"}</td></tr>
                     </tbody>
                 </table>
                 ${this.buildMessagesHtml("Errori", result.errors)}

@@ -55,6 +55,7 @@ export class Artisan {
         console.log("Artisan | Module initialization");
 
         this.registerLanguageSetting();
+        this.registerArtisanModuleSettings();
         this.registerUtilityMenus();
         this.patchLocalization();
         this.exposeApi();
@@ -286,7 +287,7 @@ export class Artisan {
                             <h4>${l("ARTISAN.HelpProfessionThresholdsTitle")}</h4>
                             <table class="artisan-help-dialog__table artisan-help-dialog__table--compact">
                                 <tbody>
-                                    <tr><th>${l("ARTISAN.Level")}</th><th>${l("ARTISAN.XP")}</th><th>${l("ARTISAN.Gathering")}</th></tr>
+                                    <tr><th>${l("ARTISAN.Level")}</th><th>${l("ARTISAN.Xp")}</th><th>${l("ARTISAN.Gathering")}</th></tr>
                                     <tr><td>0</td><td>0</td><td>x1</td></tr>
                                     <tr><td>1</td><td>100</td><td>x1,2</td></tr>
                                     <tr><td>2</td><td>500</td><td>x1,5</td></tr>
@@ -357,6 +358,40 @@ export class Artisan {
             onChange: () => {
                 ui.notifications.info(Artisan.localize("ARTISAN.LanguageReloadHint"));
             }
+        });
+
+    }
+
+    private static getDefaultArtisanModuleSettings(): Record<string, boolean> {
+
+        return {
+            enableProfessionXp: true,
+            enableOutputQuality: true,
+            enableToolDamage: true,
+            enableToolDamageCrafting: true,
+            enableToolDamageForaging: true,
+            enableToolDamageHarvest: true,
+            enableToolDamageDisassembly: true,
+            enableHarvestRuinRisk: true,
+            enableActivityLog: true,
+        };
+
+    }
+
+    private static registerArtisanModuleSettings(): void {
+
+        const settings = (game.settings as any).settings;
+
+        if (settings?.has?.("artisan.moduleSettings")) {
+            return;
+        }
+
+        game.settings.register("artisan", "moduleSettings", {
+            name: "ARTISAN.ArtisanSettings",
+            scope: "world",
+            config: false,
+            type: Object,
+            default: this.getDefaultArtisanModuleSettings(),
         });
 
     }

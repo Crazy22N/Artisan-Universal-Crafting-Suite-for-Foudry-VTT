@@ -6,3 +6,5 @@ export * from "./foraging-service";
 export * from "./profession-service";
 
 export * from "./harvest-service";
+
+export * from "./disassembly-service";

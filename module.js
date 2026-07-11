@@ -13,6 +13,19 @@ var RecipeDocument = class {
       profile: "",
       difficulty: 0,
       craftingTime: 0,
+      craftingXp: 0,
+      toolRequirement: "optional",
+      toolCriticalDamage: false,
+      qualityFormulaPath: "",
+      qualityBonusGood: 0,
+      qualityBonusSuperior: 0,
+      qualityBonusExcellent: 0,
+      qualityDiceGood: "",
+      qualityDiceSuperior: "",
+      qualityDiceExcellent: "",
+      qualityEffectGood: "auto",
+      qualityEffectSuperior: "auto",
+      qualityEffectExcellent: "auto",
       skill: "",
       dc: 10,
       ingredients: [],
@@ -33,7 +46,20 @@ var RecipeDocument = class {
       category: String(merged.category ?? ""),
       profile: String(merged.profile ?? ""),
       difficulty: Number(merged.difficulty ?? 0),
-      craftingTime: Number(merged.craftingTime ?? 0),
+      craftingTime: Math.max(0, Math.floor(Number(merged.craftingTime ?? 0))),
+      craftingXp: Math.max(0, Math.floor(Number(merged.craftingXp ?? merged.xp ?? 0))),
+      toolRequirement: String(merged.toolRequirement || "optional") === "required" ? "required" : "optional",
+      toolCriticalDamage: Boolean(merged.toolCriticalDamage ?? false),
+      qualityFormulaPath: String(merged.qualityFormulaPath ?? ""),
+      qualityBonusGood: Math.max(0, Math.floor(Number(merged.qualityBonusGood ?? 0))),
+      qualityBonusSuperior: Math.max(0, Math.floor(Number(merged.qualityBonusSuperior ?? 0))),
+      qualityBonusExcellent: Math.max(0, Math.floor(Number(merged.qualityBonusExcellent ?? 0))),
+      qualityDiceGood: String(merged.qualityDiceGood ?? ""),
+      qualityDiceSuperior: String(merged.qualityDiceSuperior ?? ""),
+      qualityDiceExcellent: String(merged.qualityDiceExcellent ?? ""),
+      qualityEffectGood: this.normalizeQualityEffectType(merged.qualityEffectGood ?? "auto"),
+      qualityEffectSuperior: this.normalizeQualityEffectType(merged.qualityEffectSuperior ?? "auto"),
+      qualityEffectExcellent: this.normalizeQualityEffectType(merged.qualityEffectExcellent ?? "auto"),
       skill: String(merged.skill ?? ""),
       dc: Number(merged.dc ?? 10),
       ingredients: this.normalizeComponents(merged.ingredients),
@@ -156,6 +182,18 @@ var RecipeDocument = class {
       profile: recipe.profile,
       difficulty: recipe.difficulty,
       craftingTime: recipe.craftingTime,
+      craftingXp: recipe.craftingXp,
+      toolRequirement: recipe.toolRequirement,
+      qualityFormulaPath: recipe.qualityFormulaPath,
+      qualityBonusGood: recipe.qualityBonusGood,
+      qualityBonusSuperior: recipe.qualityBonusSuperior,
+      qualityBonusExcellent: recipe.qualityBonusExcellent,
+      qualityDiceGood: recipe.qualityDiceGood,
+      qualityDiceSuperior: recipe.qualityDiceSuperior,
+      qualityDiceExcellent: recipe.qualityDiceExcellent,
+      qualityEffectGood: recipe.qualityEffectGood,
+      qualityEffectSuperior: recipe.qualityEffectSuperior,
+      qualityEffectExcellent: recipe.qualityEffectExcellent,
       skill: recipe.skill,
       dc: recipe.dc,
       ingredients,
@@ -165,6 +203,27 @@ var RecipeDocument = class {
       toolCount: tools.length,
       outputCount: outputs.length
     };
+  }
+  static normalizeQualityEffectType(value) {
+    const raw = String(value ?? "auto").trim().toLowerCase();
+    const allowed = /* @__PURE__ */ new Set([
+      "auto",
+      "healing",
+      "acid",
+      "fire",
+      "poison",
+      "cold",
+      "lightning",
+      "thunder",
+      "necrotic",
+      "radiant",
+      "psychic",
+      "force",
+      "bludgeoning",
+      "piercing",
+      "slashing"
+    ]);
+    return allowed.has(raw) ? raw : "auto";
   }
   static normalizeComponents(components) {
     if (!Array.isArray(components)) {
@@ -601,12 +660,9 @@ var CraftingService = class {
         actor,
         recipeItem,
         validation,
-        [
-          ...context2.ingredients.filter((match) => !match.sufficient),
-          ...context2.tools.filter((match) => !match.sufficient)
-        ]
+        this.getBlockingMissingMatches(context2)
       );
-      ui.notifications.warn("Crafting non eseguibile: ingredienti o strumenti insufficienti.");
+      ui.notifications.warn("Crafting non eseguibile: ingredienti o strumenti obbligatori insufficienti.");
       return;
     }
     const requestedLots = await this.askLots(maxLots);
@@ -627,10 +683,7 @@ var CraftingService = class {
       lots,
       maxLots
     );
-    const missing = [
-      ...context.ingredients.filter((match) => !match.sufficient),
-      ...context.tools.filter((match) => !match.sufficient)
-    ];
+    const missing = this.getBlockingMissingMatches(context);
     if (missing.length > 0) {
       await this.sendCraftingBlockedToChat(
         actor,
@@ -652,7 +705,8 @@ var CraftingService = class {
       context.tools
     );
     await this.consumeIngredients(context);
-    if (roll.criticalFailure) {
+    const criticalFailureToolDamageEnabled = this.isRecipeToolCriticalDamageEnabled(validation.recipeData);
+    if (roll.criticalFailure && criticalFailureToolDamageEnabled) {
       await this.destroyTools(context);
     }
     const outputQuality = this.getCraftingOutputQuality(roll);
@@ -684,7 +738,9 @@ var CraftingService = class {
       return;
     }
     if (roll.criticalFailure) {
-      ui.notifications.error("Fallimento critico: strumenti distrutti.");
+      ui.notifications.error(
+        criticalFailureToolDamageEnabled ? "Fallimento critico: strumenti distrutti." : "Fallimento critico: danno strumenti disattivato."
+      );
       return;
     }
     if (roll.success) {
@@ -859,10 +915,12 @@ var CraftingService = class {
   calculateMaxLots(actor, validation) {
     const ingredientEntries = validation.entries.filter((entry) => entry.collection === "ingredients");
     const toolEntries = validation.entries.filter((entry) => entry.collection === "tools");
-    for (const tool of toolEntries) {
-      const match = this.buildActorInventoryMatch(actor, tool, 1);
-      if (!match.sufficient) {
-        return 0;
+    if (this.getRecipeToolRequirement(validation.recipeData) === "required") {
+      for (const tool of toolEntries) {
+        const match = this.buildActorInventoryMatch(actor, tool, 1);
+        if (!match.sufficient) {
+          return 0;
+        }
       }
     }
     if (ingredientEntries.length === 0) {
@@ -964,6 +1022,17 @@ var CraftingService = class {
     }
     await item.update({ "system.quantity": safeQuantity });
   }
+  getRecipeToolRequirement(recipe) {
+    return String(recipe.toolRequirement || "optional") === "required" ? "required" : "optional";
+  }
+  getBlockingMissingMatches(context) {
+    const missingIngredients = context.ingredients.filter((match) => !match.sufficient);
+    const missingRequiredTools = this.getRecipeToolRequirement(context.validation.recipeData) === "required" ? context.tools.filter((match) => !match.sufficient) : [];
+    return [
+      ...missingIngredients,
+      ...missingRequiredTools
+    ];
+  }
   async consumeIngredients(context) {
     for (const match of context.ingredients) {
       if (!match.actorItem || !match.sufficient) {
@@ -974,6 +1043,23 @@ var CraftingService = class {
         match.afterQuantity
       );
     }
+  }
+  isRecipeToolCriticalDamageEnabled(recipe) {
+    return Boolean(recipe.toolCriticalDamage ?? false);
+  }
+  getArtisanModuleSetting(key, defaultValue) {
+    try {
+      const settings = game.settings.get("artisan", "moduleSettings");
+      if (settings && typeof settings[key] === "boolean") {
+        return settings[key];
+      }
+      if (settings && typeof settings.enableToolDamage === "boolean") {
+        return settings.enableToolDamage;
+      }
+    } catch (_error) {
+      return defaultValue;
+    }
+    return defaultValue;
   }
   async destroyTools(context) {
     for (const match of context.tools) {
@@ -1015,6 +1101,14 @@ var CraftingService = class {
       delete data._id;
       data.system = data.system ?? {};
       data.system.quantity = quantity;
+      const qualityModification = this.getQualityModification(
+        context.validation.recipeData,
+        quality
+      );
+      const qualityModifiedPaths = this.applyQualityModificationToItemData(
+        data,
+        qualityModification
+      );
       if (quality.key !== "normal") {
         data.name = `${data.name ?? output.name} (${quality.label})`;
       }
@@ -1024,13 +1118,242 @@ var CraftingService = class {
         sourceUuid: output.uuid,
         craftingQuality: quality.key,
         craftingQualityLabel: quality.label,
-        craftingQualityMargin: quality.margin
+        craftingQualityMargin: quality.margin,
+        craftingQualityFormulaBonus: qualityModification.bonus,
+        craftingQualityDice: qualityModification.dice,
+        craftingQualityEffectType: qualityModification.effectType,
+        craftingQualityFormulaPath: qualityModification.preferredPath,
+        craftingQualityModifiedPaths: qualityModifiedPaths
       };
       await context.actor.createEmbeddedDocuments(
         "Item",
         [data]
       );
     }
+  }
+  getQualityModification(recipe, quality) {
+    let bonus = 0;
+    let dice = "";
+    let effectType = "auto";
+    if (quality.key === "good") {
+      bonus = Math.max(0, Math.floor(Number(recipe.qualityBonusGood ?? 0)));
+      dice = this.normalizeQualityDice(recipe.qualityDiceGood ?? "");
+      effectType = this.normalizeQualityEffectType(recipe.qualityEffectGood ?? "auto");
+    } else if (quality.key === "superior") {
+      bonus = Math.max(0, Math.floor(Number(recipe.qualityBonusSuperior ?? 0)));
+      dice = this.normalizeQualityDice(recipe.qualityDiceSuperior ?? "");
+      effectType = this.normalizeQualityEffectType(recipe.qualityEffectSuperior ?? "auto");
+    } else if (quality.key === "excellent") {
+      bonus = Math.max(0, Math.floor(Number(recipe.qualityBonusExcellent ?? 0)));
+      dice = this.normalizeQualityDice(recipe.qualityDiceExcellent ?? "");
+      effectType = this.normalizeQualityEffectType(recipe.qualityEffectExcellent ?? "auto");
+    }
+    return {
+      bonus,
+      dice,
+      effectType,
+      preferredPath: String(recipe.qualityFormulaPath ?? "").trim()
+    };
+  }
+  applyQualityModificationToItemData(data, modification) {
+    if (!data || !modification.bonus && !modification.dice) {
+      return [];
+    }
+    const appliedPaths = [];
+    if (modification.preferredPath) {
+      if (this.applyQualityEffectAtPath(data, modification.preferredPath, modification)) {
+        appliedPaths.push(modification.preferredPath);
+        return appliedPaths;
+      }
+    }
+    appliedPaths.push(...this.applyAutomaticQualityEffect(data, modification));
+    if (appliedPaths.length > 0) {
+      this.applyQualityDamageType(data, modification, appliedPaths);
+    }
+    return appliedPaths;
+  }
+  applyAutomaticQualityEffect(data, modification) {
+    const appliedPaths = [];
+    const effectType = modification.effectType;
+    const wantsHealing = effectType === "healing";
+    const wantsDamage = this.isDamageEffectType(effectType);
+    const activities = data?.system?.activities;
+    if (activities && typeof activities === "object") {
+      for (const [activityId, activity] of Object.entries(activities)) {
+        const candidatePaths = wantsHealing ? [
+          `system.activities.${activityId}.healing.bonus`,
+          `system.activities.${activityId}.healing.formula`
+        ] : wantsDamage ? [
+          `system.activities.${activityId}.damage.formula`,
+          `system.activities.${activityId}.damage.parts.0.0`
+        ] : [
+          `system.activities.${activityId}.healing.bonus`,
+          `system.activities.${activityId}.healing.formula`,
+          `system.activities.${activityId}.damage.formula`,
+          `system.activities.${activityId}.damage.parts.0.0`
+        ];
+        for (const path of candidatePaths) {
+          if (this.applyQualityEffectAtPath(data, path, modification)) {
+            appliedPaths.push(path);
+            return appliedPaths;
+          }
+        }
+      }
+    }
+    const fallbackPaths = wantsHealing ? [
+      "system.healing.bonus",
+      "system.healing.formula",
+      "system.formula"
+    ] : wantsDamage ? [
+      "system.damage.parts.0.0",
+      "system.damage.formula",
+      "system.formula"
+    ] : [
+      "system.healing.bonus",
+      "system.healing.formula",
+      "system.damage.parts.0.0",
+      "system.damage.formula",
+      "system.formula"
+    ];
+    for (const path of fallbackPaths) {
+      if (this.applyQualityEffectAtPath(data, path, modification)) {
+        appliedPaths.push(path);
+        break;
+      }
+    }
+    return appliedPaths;
+  }
+  applyQualityEffectAtPath(data, path, modification) {
+    const current = foundry.utils.getProperty(data, path);
+    if (typeof current === "number") {
+      foundry.utils.setProperty(data, path, current + modification.bonus);
+      return modification.bonus > 0;
+    }
+    if (typeof current === "string") {
+      const trimmed = current.trim();
+      if (!trimmed && !modification.dice) {
+        return false;
+      }
+      let updated = trimmed;
+      if (modification.dice) {
+        updated = this.addDiceToFormula(updated, modification.dice);
+      }
+      if (modification.bonus > 0) {
+        updated = this.addFlatBonusToFormula(updated, modification.bonus);
+      }
+      if (updated !== trimmed && updated.trim().length > 0) {
+        foundry.utils.setProperty(data, path, updated);
+        return true;
+      }
+    }
+    return false;
+  }
+  applyQualityDamageType(data, modification, appliedPaths) {
+    if (!this.isDamageEffectType(modification.effectType)) {
+      return;
+    }
+    for (const path of appliedPaths) {
+      if (path.includes(".damage.parts.")) {
+        const typePath = path.replace(/\.0$/, ".1");
+        foundry.utils.setProperty(data, typePath, modification.effectType);
+        continue;
+      }
+      const activityMatch = path.match(/^system\.activities\.([^\.]+)\.damage\./);
+      if (activityMatch) {
+        const activityId = activityMatch[1];
+        const partsPath = `system.activities.${activityId}.damage.parts`;
+        const parts = foundry.utils.getProperty(data, partsPath);
+        if (Array.isArray(parts) && Array.isArray(parts[0])) {
+          parts[0][1] = modification.effectType;
+          foundry.utils.setProperty(data, partsPath, parts);
+        }
+      }
+    }
+  }
+  normalizeQualityDice(value) {
+    const raw = String(value ?? "").trim().toLowerCase();
+    if (!raw) {
+      return "";
+    }
+    const cleaned = raw.replace(/\s+/g, "");
+    if (/^\d*d\d+(kh\d+|kl\d+|ro?<?\d+|mi\d+|ma\d+)?$/i.test(cleaned)) {
+      return cleaned;
+    }
+    if (/^\d+d\d+$/i.test(cleaned)) {
+      return cleaned;
+    }
+    return "";
+  }
+  normalizeQualityEffectType(value) {
+    const raw = String(value ?? "auto").trim().toLowerCase();
+    const allowed = /* @__PURE__ */ new Set([
+      "auto",
+      "healing",
+      "acid",
+      "fire",
+      "poison",
+      "cold",
+      "lightning",
+      "thunder",
+      "necrotic",
+      "radiant",
+      "psychic",
+      "force",
+      "bludgeoning",
+      "piercing",
+      "slashing"
+    ]);
+    return allowed.has(raw) ? raw : "auto";
+  }
+  isDamageEffectType(value) {
+    return [
+      "acid",
+      "fire",
+      "poison",
+      "cold",
+      "lightning",
+      "thunder",
+      "necrotic",
+      "radiant",
+      "psychic",
+      "force",
+      "bludgeoning",
+      "piercing",
+      "slashing"
+    ].includes(value);
+  }
+  addDiceToFormula(formula, dice) {
+    const cleanDice = this.normalizeQualityDice(dice);
+    if (!cleanDice) {
+      return formula;
+    }
+    const cleaned = formula.trim();
+    if (!cleaned) {
+      return cleanDice;
+    }
+    return `${cleaned} + ${cleanDice}`;
+  }
+  addFlatBonusToFormula(formula, bonus) {
+    const cleaned = formula.trim();
+    if (!cleaned) {
+      return bonus > 0 ? String(bonus) : formula;
+    }
+    const terminalFlatBonus = cleaned.match(/^(.*?)([+\-])\s*(\d+)\s*$/);
+    if (terminalFlatBonus) {
+      const prefix = terminalFlatBonus[1].trimEnd();
+      const sign = terminalFlatBonus[2];
+      const value = Number(terminalFlatBonus[3]);
+      const signedValue = sign === "-" ? -value : value;
+      const nextValue = signedValue + bonus;
+      if (nextValue === 0) {
+        return prefix.trim();
+      }
+      return `${prefix} ${nextValue >= 0 ? "+" : "-"} ${Math.abs(nextValue)}`;
+    }
+    if (/\d*d\d+/i.test(cleaned) || /^\d+$/.test(cleaned)) {
+      return `${cleaned} + ${bonus}`;
+    }
+    return formula;
   }
   async rollSkillCheck(actor, recipe, tools = []) {
     const skillModifier = this.getActorSkillModifier(
@@ -1605,12 +1928,16 @@ var CraftingService = class {
     };
   }
   calculateCraftingXp(context, roll) {
-    const requiredLevel = Math.max(
-      0,
-      Math.floor(Number(context.professionRequirement.requiredLevel ?? 0))
-    );
     const lotMultiplier = Math.max(1, Math.floor(Number(context.lots ?? 1)));
-    const baseXp = Math.max(1, requiredLevel + 1) * lotMultiplier;
+    const recipeCraftingXp = Math.max(
+      0,
+      Math.floor(Number(context.validation.recipeData.craftingXp ?? 0))
+    );
+    const baseXpPerLot = recipeCraftingXp > 0 ? recipeCraftingXp : Math.max(
+      1,
+      Math.floor(Number(context.professionRequirement.requiredLevel ?? 0)) + 1
+    );
+    const baseXp = baseXpPerLot * lotMultiplier;
     return roll.criticalSuccess ? baseXp * 2 : baseXp;
   }
   async sendCraftingResultToChat(context, roll, professionXp, outputQuality) {
@@ -1627,6 +1954,7 @@ var CraftingService = class {
                     Professione PG: livello ${professionXp.beforeLevel} \u2192 ${professionXp.afterLevel}${professionXp.afterLevel > professionXp.beforeLevel ? " \u2B50 Avanzamento" : ""}<br>
                     XP professione: ${professionXp.beforeXp} \u2192 ${professionXp.afterXp}<br>
                     XP professione guadagnata: +${professionXp.gained}<br>
+                    XP ricetta per lotto: ${Math.max(0, Math.floor(Number(context.validation.recipeData.craftingXp ?? 0))) || "automatici"}<br>
                     Prossimo livello: ${professionXp.xpForNextLevel === null ? "Livello massimo" : `${professionXp.xpToNextLevel} XP mancanti (${professionXp.progressPercent}%)`}
                 </p>
                 <table>
@@ -1640,6 +1968,7 @@ var CraftingService = class {
                         <tr><td><strong>CD</strong></td><td>${roll.dc}</td></tr>
                         <tr><td><strong>Margine</strong></td><td>${roll.success ? outputQuality.margin : "\u2014"}</td></tr>
                         <tr><td><strong>Qualit\xE0 output</strong></td><td>${roll.success ? `${this.escapeHtml(outputQuality.label)} \u2014 ${this.escapeHtml(outputQuality.description)}` : "Nessuna"}</td></tr>
+                        <tr><td><strong>Bonus qualit\xE0 formula</strong></td><td>${roll.success ? this.getQualityModification(context.validation.recipeData, outputQuality).bonus > 0 ? `+${this.getQualityModification(context.validation.recipeData, outputQuality).bonus}${this.getQualityModification(context.validation.recipeData, outputQuality).preferredPath ? ` su ${this.escapeHtml(this.getQualityModification(context.validation.recipeData, outputQuality).preferredPath)}` : " automatico"}` : "Nessuno" : "Nessuno"}</td></tr>
                     </tbody>
                 </table>
                 ${this.buildToolProficiencyResultSection(roll.toolProficiencyDetails)}
@@ -1648,7 +1977,7 @@ var CraftingService = class {
       "Strumenti",
       context.tools,
       roll.criticalFailure ? "\u{1F4A5}" : "\u{1F6E0}\uFE0F",
-      roll.criticalFailure ? "Distrutti" : "Non consumati"
+      roll.criticalFailure ? this.isRecipeToolCriticalDamageEnabled(context.validation.recipeData) ? "Distrutti" : "Protetti: danno disattivato" : "Non consumati"
     )}
                 ${this.buildOutputResultSection(context.outputs, context.lots, roll.success ? roll.criticalSuccess ? 2 : 1 : 0, outputIcon, outputStatus, outputQuality)}
             </div>
@@ -1815,6 +2144,8 @@ var CraftingService = class {
                         <tr><td><strong>Abilit\xE0</strong></td><td>${this.escapeHtml(recipe.skill || "Non impostata")}</td></tr>
                         <tr><td><strong>CD</strong></td><td>${recipe.dc}</td></tr>
                         <tr><td><strong>Tempo</strong></td><td>${recipe.craftingTime} minuti</td></tr>
+                        <tr><td><strong>XP crafting</strong></td><td>${Math.max(0, Math.floor(Number(recipe.craftingXp ?? 0))) || "Automatici"}</td></tr>
+                        <tr><td><strong>Strumenti</strong></td><td>${this.getRecipeToolRequirement(recipe) === "required" ? "Obbligatori" : "Opzionali / solo bonus se competente"}</td></tr>
                     </tbody>
                 </table>
                 ${this.buildMessagesHtml("Errori", result.errors)}
@@ -1879,6 +2210,1017 @@ var CraftingService = class {
   }
 };
 
+// src/services/disassembly-service.ts
+var DisassemblyService = class _DisassemblyService {
+  static SETTING_SCOPE = "artisan";
+  static SETTING_KEY = "disassemblyProfiles";
+  async getManagerData(selectedProfileId) {
+    const profiles = this.getProfiles();
+    let selected = selectedProfileId ? this.getProfile(selectedProfileId) : null;
+    if (!selected && profiles.length > 0) {
+      selected = profiles[0];
+    }
+    return {
+      profiles: profiles.map((profile) => ({
+        id: profile.id,
+        label: profile.name,
+        icon: "fa-solid fa-screwdriver-wrench",
+        selected: selected?.id === profile.id
+      })),
+      selectedProfile: selected ? await this.toProfileView(selected) : null
+    };
+  }
+  getProfiles() {
+    this.ensureSettingsRegistered();
+    const value = game.settings.get(
+      _DisassemblyService.SETTING_SCOPE,
+      _DisassemblyService.SETTING_KEY
+    );
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value.map((profile) => this.normalizeProfile(profile));
+  }
+  getProfile(id) {
+    return this.getProfiles().find((profile) => profile.id === id) ?? null;
+  }
+  async createProfile() {
+    const profile = {
+      id: foundry.utils.randomID(),
+      name: "Nuova lista Dissassemblare",
+      sourceUuid: "",
+      sourceQuantity: 1,
+      profession: "conciatore",
+      professionLevel: 1,
+      skill: "survival",
+      dc: 10,
+      time: 1,
+      maxResources: 3,
+      toolRequirement: "optional",
+      toolCriticalDamage: false,
+      resources: [],
+      tools: []
+    };
+    await this.saveProfiles([...this.getProfiles(), profile]);
+    return profile;
+  }
+  async updateProfile(id, data) {
+    const nextProfiles = this.getProfiles().map((profile) => {
+      if (profile.id !== id) {
+        return profile;
+      }
+      return this.normalizeProfile({
+        ...profile,
+        ...data
+      });
+    });
+    await this.saveProfiles(nextProfiles);
+  }
+  async addComponent(profileId, collection, uuid, quantity, options = {}) {
+    const cleanUuid = uuid.trim();
+    if (!cleanUuid) {
+      ui.notifications.warn("Inserisci un UUID valido.");
+      return;
+    }
+    let document2 = null;
+    try {
+      document2 = await fromUuid(cleanUuid);
+    } catch (_error) {
+      ui.notifications.warn(`UUID non leggibile: ${cleanUuid}`);
+      return;
+    }
+    if (!document2) {
+      ui.notifications.warn(`Nessun documento trovato: ${cleanUuid}`);
+      return;
+    }
+    if (document2.documentName !== "Item") {
+      ui.notifications.warn("Puoi aggiungere solo Item dal mondo o dai compendi.");
+      return;
+    }
+    const importedWeight = this.getItemWeight(document2);
+    const nextProfiles = this.getProfiles().map((profile) => {
+      if (profile.id !== profileId) {
+        return profile;
+      }
+      const component = this.normalizeComponent({
+        uuid: cleanUuid,
+        quantity,
+        weight: collection === "resources" ? this.resolveResourceWeight(options.weight, importedWeight) : options.weight,
+        minQuantity: options.minQuantity,
+        maxQuantity: options.maxQuantity
+      });
+      const nextCollection = [...profile[collection]];
+      const existingIndex = nextCollection.findIndex((entry) => entry.uuid === component.uuid);
+      if (existingIndex >= 0) {
+        const existing = nextCollection[existingIndex];
+        if (collection === "resources") {
+          nextCollection[existingIndex] = this.normalizeComponent({
+            ...existing,
+            weight: component.weight,
+            minQuantity: component.minQuantity,
+            maxQuantity: component.maxQuantity,
+            quantity: component.maxQuantity
+          });
+        } else {
+          nextCollection[existingIndex] = this.normalizeComponent({
+            ...existing,
+            quantity: Math.max(1, Number(existing.quantity ?? 1) + component.quantity)
+          });
+        }
+      } else {
+        nextCollection.push(component);
+      }
+      return {
+        ...profile,
+        [collection]: nextCollection
+      };
+    });
+    await this.saveProfiles(nextProfiles);
+    ui.notifications.info(`${document2.name} aggiunto alla lista Dissassemblare.`);
+  }
+  async removeComponent(profileId, collection, index) {
+    const nextProfiles = this.getProfiles().map((profile) => {
+      if (profile.id !== profileId) {
+        return profile;
+      }
+      return {
+        ...profile,
+        [collection]: profile[collection].filter((_entry, entryIndex) => entryIndex !== index)
+      };
+    });
+    await this.saveProfiles(nextProfiles);
+  }
+  async updateComponent(profileId, collection, index, data) {
+    const nextProfiles = this.getProfiles().map((profile) => {
+      if (profile.id !== profileId) {
+        return profile;
+      }
+      const nextCollection = [...profile[collection]];
+      const current = nextCollection[index];
+      if (!current) {
+        return profile;
+      }
+      nextCollection[index] = this.normalizeComponent({
+        ...current,
+        ...data
+      });
+      return {
+        ...profile,
+        [collection]: nextCollection
+      };
+    });
+    await this.saveProfiles(nextProfiles);
+  }
+  async deleteProfile(id) {
+    const profiles = this.getProfiles();
+    const target = profiles.find((profile) => profile.id === id);
+    if (!target) {
+      ui.notifications.warn("Lista Dissassemblare non trovata.");
+      return;
+    }
+    await this.saveProfiles(profiles.filter((profile) => profile.id !== id));
+    ui.notifications.info(`Lista Dissassemblare eliminata: ${target.name}`);
+  }
+  exportProfiles() {
+    const data = JSON.stringify(
+      {
+        type: "artisan-disassembly-profiles",
+        version: 1,
+        exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        profiles: this.getProfiles()
+      },
+      null,
+      4
+    );
+    saveDataToFile(
+      data,
+      "application/json",
+      "artisan-dissassemblare-liste.json"
+    );
+  }
+  async importProfiles(payload) {
+    const entries = this.getImportEntries(payload);
+    if (!entries.length) {
+      return { imported: 0, skipped: 0 };
+    }
+    const existingProfiles = this.getProfiles();
+    const existingNames = new Set(existingProfiles.map((profile) => profile.name.trim().toLowerCase()));
+    const nextProfiles = [...existingProfiles];
+    let imported = 0;
+    let skipped = 0;
+    for (const entry of entries) {
+      const profile = this.normalizeImportedProfile(entry);
+      if (!profile) {
+        skipped += 1;
+        continue;
+      }
+      const duplicateKey = profile.name.trim().toLowerCase();
+      if (existingNames.has(duplicateKey)) {
+        skipped += 1;
+        continue;
+      }
+      existingNames.add(duplicateKey);
+      nextProfiles.push(profile);
+      imported += 1;
+    }
+    if (imported > 0) {
+      await this.saveProfiles(nextProfiles);
+    }
+    return { imported, skipped };
+  }
+  async startDisassembly(profileId) {
+    const profile = this.getProfile(profileId);
+    if (!profile) {
+      ui.notifications.warn("Lista Dissassemblare non trovata.");
+      return;
+    }
+    const actor = this.getSelectedActor();
+    if (!actor) {
+      ui.notifications.warn("Seleziona un token con attore prima di usare Dissassemblare.");
+      return;
+    }
+    if (!profile.sourceUuid) {
+      ui.notifications.warn("Imposta la risorsa sorgente da dissassemblare.");
+      return;
+    }
+    if (profile.resources.length === 0) {
+      ui.notifications.warn("La lista Dissassemblare non contiene materiali ottenibili.");
+      return;
+    }
+    const sourceDocument = await this.safeFromUuid(profile.sourceUuid);
+    const sourceName = sourceDocument?.name ?? profile.sourceUuid;
+    const sourceItem = this.findActorItemBySource(actor, profile.sourceUuid, sourceName);
+    const sourceQuantityOwned = sourceItem ? Math.max(1, Number(foundry.utils.getProperty(sourceItem, "system.quantity") ?? 1)) : 0;
+    const sourceQuantityRequired = Math.max(1, Math.floor(Number(profile.sourceQuantity ?? 1)));
+    if (!sourceItem || sourceQuantityOwned < sourceQuantityRequired) {
+      ui.notifications.warn(`Dissassemblare bloccato: ${actor.name ?? "PG"} non possiede abbastanza ${sourceName}.`);
+      await this.sendBlockedByMissingSourceToChat(actor, profile, sourceName, sourceQuantityOwned, sourceQuantityRequired);
+      return;
+    }
+    const toolRequirementResult = await this.checkToolRequirement(actor, profile);
+    if (!toolRequirementResult.allowed) {
+      await this.sendBlockedByToolRequirementToChat(actor, profile, toolRequirementResult.details);
+      ui.notifications.warn("Dissassemblare bloccato: manca uno strumento obbligatorio.");
+      return;
+    }
+    const confirmation = await this.confirmDisassembly(profile, actor, sourceName, sourceQuantityOwned, sourceQuantityRequired);
+    if (!confirmation) {
+      return;
+    }
+    const skillModifier = this.getSkillModifier(actor, profile.skill);
+    const toolBonusResult = await this.getToolQuantityBonus(actor, profile);
+    const toolBonus = toolBonusResult.totalBonus;
+    const totalModifier = skillModifier + toolBonus;
+    const formula = totalModifier === 0 ? "1d20" : `1d20 ${totalModifier >= 0 ? "+" : "-"} ${Math.abs(totalModifier)}`;
+    const roll = await new Roll(formula).evaluate();
+    const total = Number(roll.total ?? 0);
+    const natural = this.getNaturalD20(roll);
+    const criticalSuccess = natural === 20;
+    const criticalFailure = natural === 1;
+    const success = !criticalFailure && (criticalSuccess || total >= profile.dc);
+    const selectedResources = success ? await this.getMixedResolvedResources(profile) : [];
+    const professionService = new ProfessionService();
+    const actorProfession = professionService.getActorProfession(actor, profile.profession);
+    const gatheringMultiplier = actorProfession.gatheringMultiplier;
+    const collectedResources = selectedResources.map((resource) => {
+      const rolledQuantity = Math.max(0, Number(resource.rolledQuantity ?? 0));
+      const normalQuantity = Math.max(1, rolledQuantity);
+      const multipliedQuantity = this.applyProfessionMultiplier(normalQuantity, gatheringMultiplier);
+      const finalQuantity = criticalSuccess ? multipliedQuantity * 2 : multipliedQuantity;
+      return {
+        ...resource,
+        normalQuantity,
+        multipliedQuantity,
+        finalQuantity
+      };
+    });
+    let sourceConsumed = false;
+    let sourceAfterQuantity = sourceQuantityOwned;
+    if (success) {
+      sourceAfterQuantity = await this.consumeActorItem(sourceItem, sourceQuantityRequired);
+      sourceConsumed = true;
+      for (const resource of collectedResources) {
+        if (resource.finalQuantity <= 0) {
+          continue;
+        }
+        await this.addItemToActor(actor, resource.uuid, resource.finalQuantity);
+      }
+    }
+    const criticalFailureToolDamage = criticalFailure ? this.isProfileToolCriticalDamageEnabled(profile) ? await this.damageDisassemblyTool(actor, profile) : game.i18n.localize("ARTISAN.ToolDamageDisabled") : null;
+    const professionXpGained = success ? this.calculateDisassemblyXp(profile, collectedResources.length, criticalSuccess) : 0;
+    const actorProfessionAfterXp = professionXpGained > 0 ? await professionService.addActorProfessionXp(actor, profile.profession, professionXpGained) : actorProfession;
+    await this.sendDisassemblyResultToChat({
+      actor,
+      profile,
+      sourceName,
+      sourceQuantityOwned,
+      sourceQuantityRequired,
+      sourceAfterQuantity,
+      sourceConsumed,
+      rollFormula: formula,
+      natural,
+      total,
+      skillModifier,
+      success,
+      criticalSuccess,
+      criticalFailure,
+      collectedResources,
+      toolBonus,
+      toolBonusDetails: toolBonusResult.details,
+      gatheringMultiplierLabel: actorProfession.gatheringMultiplierLabel,
+      actorProfessionLevel: actorProfession.level,
+      actorProfessionLevelAfter: actorProfessionAfterXp.level,
+      actorProfessionXp: actorProfession.xp,
+      xpGained: professionXpGained,
+      actorProfessionXpAfter: actorProfessionAfterXp.xp,
+      xpToNextLevel: actorProfessionAfterXp.xpToNextLevel,
+      xpForNextLevel: actorProfessionAfterXp.xpForNextLevel,
+      progressPercent: actorProfessionAfterXp.progressPercent,
+      criticalFailureToolDamage
+    });
+    if (criticalSuccess) {
+      ui.notifications.info("Dissassemblare riuscito con successo critico.");
+    } else if (success) {
+      ui.notifications.info("Dissassemblare riuscito.");
+    } else if (criticalFailure) {
+      ui.notifications.error("Dissassemblare fallito criticamente.");
+    } else {
+      ui.notifications.warn("Dissassemblare fallito.");
+    }
+  }
+  async confirmDisassembly(profile, actor, sourceName, sourceQuantityOwned, sourceQuantityRequired) {
+    const resources = await this.toComponentViews(profile, "resources", profile.resources);
+    const tools = await this.toComponentViews(profile, "tools", profile.tools);
+    const toolBonusPreview = await this.getToolQuantityBonus(actor, profile);
+    const actorProfession = new ProfessionService().getActorProfession(actor, profile.profession);
+    const resourceRows = resources.length > 0 ? resources.map((resource) => `<li>${this.escapeHtml(resource.name)} \u2014 peso ${resource.weight}, quantit\xE0 ${this.escapeHtml(resource.quantityLabel)}</li>`).join("") : "<li><em>Nessun materiale configurato.</em></li>";
+    const toolRows = toolBonusPreview.details.length > 0 ? toolBonusPreview.details.map((tool) => {
+      const status = tool.applied ? "bonus alla prova applicato" : tool.possessed ? "posseduto ma non competente" : "non posseduto";
+      return `<li>${this.escapeHtml(tool.name)}: +${tool.quantity} alla prova \u2014 ${this.escapeHtml(status)}</li>`;
+    }).join("") : tools.length > 0 ? "<li><em>Strumenti configurati ma non risolti.</em></li>" : "<li><em>Nessuno strumento bonus configurato.</em></li>";
+    const content = `
+            <form>
+                <p><strong>Attore:</strong> ${this.escapeHtml(actor.name ?? "Attore")}</p>
+                <p><strong>Lista:</strong> ${this.escapeHtml(profile.name)}</p>
+                <p><strong>Sorgente:</strong> ${this.escapeHtml(sourceName)} \u2014 richiesti ${sourceQuantityRequired}, posseduti ${sourceQuantityOwned}</p>
+                <p><strong>Professione:</strong> ${this.escapeHtml(this.getProfessionLabel(profile.profession))}</p>
+                <p><strong>Livello professione PG:</strong> ${actorProfession.level}</p>
+                <p><strong>Moltiplicatore PG:</strong> ${this.escapeHtml(actorProfession.gatheringMultiplierLabel)}</p>
+                <p><strong>Abilit\xE0:</strong> ${this.escapeHtml(profile.skill || "Non impostata")}</p>
+                <p><strong>CD:</strong> ${profile.dc}</p>
+                <p><strong>Tempo:</strong> ${this.formatMinutes(profile.time)}</p>
+                <p><strong>Massimo materiali diversi:</strong> ${profile.maxResources}</p>
+
+                <h4>Materiali possibili</h4>
+                <ul>${resourceRows}</ul>
+
+                <h4>Strumenti bonus</h4>
+                <ul>${toolRows}</ul>
+            </form>
+        `;
+    return new Promise((resolve) => {
+      new Dialog({
+        title: "Avvia Dissassemblare",
+        content,
+        buttons: {
+          cancel: {
+            label: "Annulla",
+            callback: () => resolve(false)
+          },
+          confirm: {
+            label: "Dissassembla",
+            callback: () => resolve(true)
+          }
+        },
+        default: "confirm",
+        close: () => resolve(false)
+      }).render(true);
+    });
+  }
+  async sendBlockedByMissingSourceToChat(actor, profile, sourceName, owned, required) {
+    await ChatMessage.create({
+      speaker: ChatMessage.getSpeaker({ actor }),
+      content: `
+                <div class="artisan-chat-card artisan-chat-card--blocked">
+                    <h2>Dissassemblare bloccato</h2>
+                    <p><strong>Attore:</strong> ${this.escapeHtml(actor.name ?? "Attore")}</p>
+                    <p><strong>Lista:</strong> ${this.escapeHtml(profile.name)}</p>
+                    <p>Manca la risorsa sorgente richiesta.</p>
+                    <p><strong>Sorgente:</strong> ${this.escapeHtml(sourceName)} \u2014 richiesti ${required}, posseduti ${owned}</p>
+                </div>
+            `
+    });
+  }
+  async getMixedResolvedResources(profile) {
+    const resources = await this.toComponentViews(profile, "resources", profile.resources);
+    const availableResources = resources.filter((resource) => resource.found && resource.weight > 0);
+    if (availableResources.length === 0) {
+      return [];
+    }
+    const maxResources = Math.max(
+      1,
+      Math.min(
+        availableResources.length,
+        Math.floor(Number(profile.maxResources ?? 1))
+      )
+    );
+    const targetCount = 1 + Math.floor(Math.random() * maxResources);
+    const remaining = [...availableResources];
+    const selected = [];
+    while (selected.length < targetCount && remaining.length > 0) {
+      const totalWeight = remaining.reduce((total, resource2) => total + Math.max(0, Number(resource2.weight ?? 0)), 0);
+      if (totalWeight <= 0) {
+        break;
+      }
+      let roll = Math.random() * totalWeight;
+      let selectedIndex = 0;
+      for (let index = 0; index < remaining.length; index += 1) {
+        roll -= Math.max(0, Number(remaining[index].weight ?? 0));
+        if (roll <= 0) {
+          selectedIndex = index;
+          break;
+        }
+      }
+      const [resource] = remaining.splice(selectedIndex, 1);
+      selected.push({
+        ...resource,
+        rolledQuantity: this.rollQuantityRange(resource.minQuantity, resource.maxQuantity)
+      });
+    }
+    return selected;
+  }
+  rollQuantityRange(minQuantity, maxQuantity) {
+    const min = Math.max(1, Math.floor(Number(minQuantity || 1)));
+    const max = Math.max(min, Math.floor(Number(maxQuantity || min)));
+    return min + Math.floor(Math.random() * (max - min + 1));
+  }
+  async checkToolRequirement(actor, profile) {
+    const preview = await this.getToolQuantityBonus(actor, profile);
+    if (profile.toolRequirement !== "required" || profile.tools.length === 0) {
+      return { allowed: true, details: preview.details };
+    }
+    return {
+      allowed: preview.details.some((detail) => detail.possessed),
+      details: preview.details
+    };
+  }
+  async sendBlockedByToolRequirementToChat(actor, profile, details) {
+    const rows = details.length > 0 ? details.map((detail) => `<li>${this.escapeHtml(detail.name)} \u2014 ${detail.possessed ? detail.proficient ? "posseduto e competente" : "posseduto ma non competente" : "non posseduto"}</li>`).join("") : "<li>Nessuno strumento configurato.</li>";
+    await ChatMessage.create({
+      content: `
+                <div class="artisan-chat-card">
+                    <h2>Dissassemblare bloccato</h2>
+                    <p><strong>${this.escapeHtml(actor.name ?? "PG")}</strong> non possiede nessuno degli strumenti obbligatori per <strong>${this.escapeHtml(profile.name)}</strong>.</p>
+                    <ul>${rows}</ul>
+                    <p><em>La competenza serve solo per il bonus; per sbloccare l\u2019azione basta possedere almeno uno strumento obbligatorio.</em></p>
+                </div>
+            `,
+      speaker: ChatMessage.getSpeaker({ actor })
+    });
+  }
+  isProfileToolCriticalDamageEnabled(profile) {
+    return Boolean(profile.toolCriticalDamage ?? false);
+  }
+  getArtisanModuleSetting(key, defaultValue) {
+    try {
+      const settings = game.settings.get("artisan", "moduleSettings");
+      if (settings && typeof settings[key] === "boolean") {
+        return settings[key];
+      }
+      if (settings && typeof settings.enableToolDamage === "boolean") {
+        return settings.enableToolDamage;
+      }
+    } catch (_error) {
+      return defaultValue;
+    }
+    return defaultValue;
+  }
+  async damageDisassemblyTool(actor, profile) {
+    if (profile.tools.length === 0) {
+      return "Nessuno strumento configurato nella lista Dissassemblare.";
+    }
+    for (const tool of profile.tools) {
+      const document2 = await this.safeFromUuid(tool.uuid);
+      if (!document2) {
+        continue;
+      }
+      const actorItem = this.findActorItemBySource(actor, tool.uuid, document2.name ?? "");
+      if (!actorItem) {
+        continue;
+      }
+      if (!this.actorIsProficientWithTool(actor, actorItem, document2)) {
+        continue;
+      }
+      const itemName = actorItem.name ?? document2.name ?? "Strumento";
+      const currentQuantity = Math.max(
+        1,
+        Number(foundry.utils.getProperty(actorItem, "system.quantity") ?? 1)
+      );
+      if (currentQuantity > 1) {
+        await actorItem.update({
+          "system.quantity": currentQuantity - 1
+        });
+        return `${itemName} danneggiato: quantit\xE0 ${currentQuantity} \u2192 ${currentQuantity - 1}.`;
+      }
+      await actorItem.delete();
+      return `${itemName} distrutto.`;
+    }
+    return "Nessuno strumento posseduto e competente da danneggiare.";
+  }
+  async getToolQuantityBonus(actor, profile) {
+    let totalBonus = 0;
+    const details = [];
+    for (const tool of profile.tools) {
+      const document2 = await this.safeFromUuid(tool.uuid);
+      const name = document2?.name ?? tool.uuid;
+      const actorItem = document2 ? this.findActorItemBySource(actor, tool.uuid, document2.name ?? "") : null;
+      const possessed = !!actorItem;
+      const proficient = possessed ? this.actorIsProficientWithTool(actor, actorItem, document2) : false;
+      const proficiencyBonus = this.getActorProficiencyBonus(actor);
+      const applied = possessed && proficient && proficiencyBonus > 0;
+      const quantity = applied ? Math.max(0, proficiencyBonus) : 0;
+      if (applied) {
+        totalBonus += quantity;
+      }
+      details.push({ name, quantity, possessed, proficient, applied });
+    }
+    return { totalBonus, details };
+  }
+  async addItemToActor(actor, uuid, quantity) {
+    const source = await this.safeFromUuid(uuid);
+    if (!source || source.documentName !== "Item") {
+      ui.notifications.warn(`Output Dissassemblare non valido: ${uuid}`);
+      return;
+    }
+    const existing = this.findActorItemBySource(actor, uuid, source.name ?? "");
+    if (existing) {
+      const currentQuantity = Number(foundry.utils.getProperty(existing, "system.quantity") ?? 1);
+      await existing.update({ "system.quantity": currentQuantity + quantity });
+      return;
+    }
+    const itemData = source.toObject();
+    foundry.utils.setProperty(itemData, "system.quantity", quantity);
+    foundry.utils.setProperty(itemData, "flags.artisan.sourceUuid", uuid);
+    await actor.createEmbeddedDocuments("Item", [itemData]);
+  }
+  async consumeActorItem(item, quantity) {
+    const beforeQuantity = Math.max(1, Number(foundry.utils.getProperty(item, "system.quantity") ?? 1));
+    const afterQuantity = Math.max(0, beforeQuantity - Math.max(1, Math.floor(Number(quantity ?? 1))));
+    if (afterQuantity > 0) {
+      await item.update({ "system.quantity": afterQuantity });
+      return afterQuantity;
+    }
+    await item.delete();
+    return 0;
+  }
+  findActorItemBySource(actor, sourceUuid, sourceName) {
+    return actor.items.find((item) => {
+      const flagUuid = item.getFlag("artisan", "sourceUuid");
+      if (flagUuid === sourceUuid) {
+        return true;
+      }
+      return !!sourceName && item.name === sourceName;
+    }) ?? null;
+  }
+  getSelectedActor() {
+    const token = canvas.tokens?.controlled?.[0];
+    return token?.actor ?? null;
+  }
+  getSkillModifier(actor, skill) {
+    const key = this.resolveSkillKey(skill);
+    if (!key) {
+      return 0;
+    }
+    const skillData = foundry.utils.getProperty(actor, `system.skills.${key}`);
+    return Number(skillData?.total ?? skillData?.mod ?? 0);
+  }
+  resolveSkillKey(skill) {
+    const clean = skill.trim().toLowerCase();
+    const map = {
+      acrobatics: "acr",
+      acrobazia: "acr",
+      animalhandling: "ani",
+      "animal handling": "ani",
+      addestrareanimali: "ani",
+      "addestrare animali": "ani",
+      arcana: "arc",
+      athletics: "ath",
+      atletica: "ath",
+      deception: "dec",
+      inganno: "dec",
+      history: "his",
+      storia: "his",
+      insight: "ins",
+      intuizione: "ins",
+      intimidation: "itm",
+      intimidire: "itm",
+      investigation: "inv",
+      indagare: "inv",
+      medicine: "med",
+      medicina: "med",
+      nature: "nat",
+      natura: "nat",
+      perception: "prc",
+      percezione: "prc",
+      performance: "prf",
+      intrattenere: "prf",
+      persuasion: "per",
+      persuasione: "per",
+      religion: "rel",
+      religione: "rel",
+      sleightofhand: "slt",
+      "sleight of hand": "slt",
+      rapiditadimano: "slt",
+      "rapidit\xE0 di mano": "slt",
+      stealth: "ste",
+      furtivita: "ste",
+      furtivit\u00E0: "ste",
+      survival: "sur",
+      sopravvivenza: "sur"
+    };
+    return map[clean] ?? clean;
+  }
+  getNaturalD20(roll) {
+    const firstTerm = roll.terms.find((term) => Array.isArray(term.results));
+    const result = firstTerm?.results?.[0]?.result;
+    return typeof result === "number" ? result : null;
+  }
+  calculateDisassemblyXp(profile, collectedResourceCount, criticalSuccess) {
+    const resourceBonus = Math.max(1, Math.floor(Number(collectedResourceCount ?? 0)));
+    const baseXp = resourceBonus + Math.max(0, Math.floor(Number(profile.sourceQuantity ?? 1)) - 1);
+    return criticalSuccess ? baseXp * 2 : baseXp;
+  }
+  async sendDisassemblyResultToChat(data) {
+    const title = data.criticalSuccess ? "\u{1F31F} Successo critico Dissassemblare" : data.criticalFailure ? "\u{1F4A5} Fallimento critico Dissassemblare" : data.success ? "\u2705 Dissassemblare riuscito" : "\u274C Dissassemblare fallito";
+    const resourceRows = data.collectedResources.length > 0 ? data.collectedResources.map((resource) => `
+                <tr>
+                    <td>${this.escapeHtml(resource.name)}</td>
+                    <td>${resource.weight}</td>
+                    <td>${this.escapeHtml(resource.quantityLabel)}</td>
+                    <td>${resource.rolledQuantity}</td>
+                    <td>${resource.multipliedQuantity}</td>
+                    <td>${resource.finalQuantity}</td>
+                </tr>
+            `).join("") : `<tr><td colspan="6">Nessun materiale ottenuto.</td></tr>`;
+    const toolDetailsText = data.toolBonusDetails.length > 0 ? data.toolBonusDetails.map((tool) => {
+      const status = tool.applied ? "applicato" : tool.possessed ? "non competente" : "non posseduto";
+      return `${this.escapeHtml(tool.name)} +${tool.quantity} alla prova: ${this.escapeHtml(status)}`;
+    }).join("<br>") : "Nessuno";
+    const sourceText = data.sourceConsumed ? `${this.escapeHtml(data.sourceName)} consumato: ${data.sourceQuantityOwned} \u2192 ${data.sourceAfterQuantity}` : `${this.escapeHtml(data.sourceName)} non consumato.`;
+    const content = `
+            <div class="artisan-chat-card">
+                <h2>${title}</h2>
+                <p><strong>${this.escapeHtml(data.profile.name)}</strong><br>Attore: ${this.escapeHtml(data.actor.name ?? "Attore")}</p>
+                <table>
+                    <tbody>
+                        <tr><td><strong>Sorgente</strong></td><td>${sourceText}</td></tr>
+                        <tr><td><strong>Professione</strong></td><td>${this.escapeHtml(this.getProfessionLabel(data.profile.profession))}</td></tr>
+                        <tr><td><strong>Livello professione PG</strong></td><td>${data.actorProfessionLevel} \u2192 ${data.actorProfessionLevelAfter}${data.actorProfessionLevelAfter > data.actorProfessionLevel ? " \u2B50 Avanzamento" : ""}</td></tr>
+                        <tr><td><strong>XP professione PG</strong></td><td>${data.actorProfessionXp} \u2192 ${data.actorProfessionXpAfter}</td></tr>
+                        <tr><td><strong>XP guadagnata</strong></td><td>+${data.xpGained}</td></tr>
+                        <tr><td><strong>Prossimo livello</strong></td><td>${data.xpForNextLevel === null ? "Livello massimo" : `${data.xpToNextLevel} XP mancanti (${data.progressPercent}%)`}</td></tr>
+                        <tr><td><strong>Moltiplicatore PG</strong></td><td>${this.escapeHtml(data.gatheringMultiplierLabel)}</td></tr>
+                        <tr><td><strong>Abilit\xE0</strong></td><td>${this.escapeHtml(data.profile.skill || "Non impostata")}</td></tr>
+                        <tr><td><strong>Formula</strong></td><td>${this.escapeHtml(data.rollFormula)}</td></tr>
+                        <tr><td><strong>Naturale</strong></td><td>${data.natural ?? "-"}</td></tr>
+                        <tr><td><strong>Modificatore abilit\xE0</strong></td><td>${data.skillModifier}</td></tr>
+                        <tr><td><strong>Bonus strumenti competenti</strong></td><td>+${data.toolBonus}</td></tr>
+                        <tr><td><strong>Dettaglio strumenti</strong></td><td>${toolDetailsText}</td></tr>
+                        <tr><td><strong>Totale</strong></td><td>${data.total}</td></tr>
+                        <tr><td><strong>CD</strong></td><td>${data.profile.dc}</td></tr>
+                        <tr><td><strong>Tempo</strong></td><td>${this.formatMinutes(data.profile.time)}</td></tr>
+                        <tr><td><strong>Danno strumenti</strong></td><td>${data.criticalFailure ? this.escapeHtml(data.criticalFailureToolDamage ?? "Nessuno") : "-"}</td></tr>
+                    </tbody>
+                </table>
+
+                <h3>Materiali ottenuti</h3>
+                <table>
+                    <thead>
+                        <tr><th>Materiale</th><th>Peso</th><th>Range</th><th>Base</th><th>Dopo mult.</th><th>Finale</th></tr>
+                    </thead>
+                    <tbody>${resourceRows}</tbody>
+                </table>
+            </div>
+        `;
+    await ChatMessage.create({
+      content,
+      speaker: ChatMessage.getSpeaker({ actor: data.actor })
+    });
+  }
+  async saveProfiles(profiles) {
+    this.ensureSettingsRegistered();
+    await game.settings.set(
+      _DisassemblyService.SETTING_SCOPE,
+      _DisassemblyService.SETTING_KEY,
+      profiles.map((profile) => this.normalizeProfile(profile))
+    );
+  }
+  ensureSettingsRegistered() {
+    const key = `${_DisassemblyService.SETTING_SCOPE}.${_DisassemblyService.SETTING_KEY}`;
+    if (game.settings.settings.has(key)) {
+      return;
+    }
+    game.settings.register(
+      _DisassemblyService.SETTING_SCOPE,
+      _DisassemblyService.SETTING_KEY,
+      {
+        name: "Artisan Disassembly Profiles",
+        scope: "world",
+        config: false,
+        type: Array,
+        default: []
+      }
+    );
+  }
+  applyProfessionMultiplier(quantity, multiplier) {
+    if (!Number.isFinite(multiplier) || multiplier <= 0) {
+      return 0;
+    }
+    const baseQuantity = Math.max(0, Number(quantity ?? 0));
+    if (baseQuantity <= 0) {
+      return 0;
+    }
+    return Math.max(1, Math.floor(baseQuantity * multiplier));
+  }
+  formatMinutes(value) {
+    const minutes = Math.max(0, Number(value ?? 0));
+    return minutes === 1 ? "1 minuto" : `${minutes} minuti`;
+  }
+  normalizeProfile(profile) {
+    const professionService = new ProfessionService();
+    const rawProfession = String(profile.profession || "conciatore");
+    const profession = professionService.getProfession(rawProfession) ? professionService.normalizeId(rawProfession) : rawProfession;
+    return {
+      id: String(profile.id || foundry.utils.randomID()),
+      name: String(profile.name || "Lista Dissassemblare"),
+      sourceUuid: String(profile.sourceUuid ?? "").trim(),
+      sourceQuantity: Math.max(1, Math.floor(Number(profile.sourceQuantity ?? 1))),
+      profession,
+      professionLevel: professionService.normalizeLevel(profile.professionLevel ?? 1),
+      skill: String(profile.skill || professionService.getDefaultSkill(profession) || "survival"),
+      dc: Number(profile.dc ?? 10),
+      time: Number(profile.time ?? 1),
+      maxResources: Math.max(1, Math.floor(Number(profile.maxResources ?? 1))),
+      toolRequirement: String(profile.toolRequirement || "optional") === "required" ? "required" : "optional",
+      toolCriticalDamage: Boolean(profile.toolCriticalDamage ?? false),
+      resources: this.normalizeComponents(profile.resources),
+      tools: this.normalizeComponents(profile.tools)
+    };
+  }
+  normalizeComponents(components) {
+    if (!Array.isArray(components)) {
+      return [];
+    }
+    return components.map((component) => this.normalizeComponent(component));
+  }
+  normalizeComponent(component) {
+    const legacyQuantity = Math.max(1, Number(component.quantity ?? 1));
+    const minQuantity = Math.max(1, Number(component.minQuantity ?? legacyQuantity));
+    const maxQuantity = Math.max(minQuantity, Number(component.maxQuantity ?? legacyQuantity));
+    return {
+      uuid: String(component.uuid ?? "").trim(),
+      quantity: legacyQuantity,
+      weight: Math.max(0.1, Number(component.weight ?? 0.1)),
+      minQuantity,
+      maxQuantity
+    };
+  }
+  async toProfileView(profile) {
+    const resources = await this.toComponentViews(profile, "resources", profile.resources);
+    const tools = await this.toComponentViews(profile, "tools", profile.tools);
+    const sourceDocument = profile.sourceUuid ? await this.safeFromUuid(profile.sourceUuid) : null;
+    return {
+      ...profile,
+      sourceName: sourceDocument?.name ?? profile.sourceUuid ?? "",
+      sourceImg: sourceDocument?.img ?? "icons/svg/item-bag.svg",
+      sourceFound: sourceDocument?.documentName === "Item",
+      resources,
+      tools,
+      resourceCount: resources.length,
+      toolCount: tools.length,
+      totalResourceWeight: resources.reduce((total, resource) => total + resource.weight, 0),
+      gatheringMultiplier: new ProfessionService().getGatheringMultiplier(profile.professionLevel),
+      gatheringMultiplierLabel: new ProfessionService().getMultiplierLabel(profile.professionLevel),
+      craftingMultiplier: new ProfessionService().getCraftingMultiplier(profile.professionLevel),
+      craftingMultiplierLabel: new ProfessionService().getMultiplierLabel(profile.professionLevel)
+    };
+  }
+  async toComponentViews(profile, collection, components) {
+    const views = components.map(async (component, index) => this.toComponentView(profile, collection, component, index));
+    return Promise.all(views);
+  }
+  async toComponentView(profile, collection, component, index) {
+    const normalized = this.normalizeComponent(component);
+    const fallback = {
+      index,
+      collection,
+      profileId: profile.id,
+      uuid: normalized.uuid,
+      quantity: normalized.quantity,
+      weight: normalized.weight,
+      minQuantity: normalized.minQuantity,
+      maxQuantity: normalized.maxQuantity,
+      quantityLabel: collection === "resources" ? this.getQuantityLabel(normalized) : "Bonus competenza PG alla prova",
+      name: normalized.uuid,
+      img: "icons/svg/item-bag.svg",
+      found: false,
+      documentType: ""
+    };
+    const document2 = await this.safeFromUuid(normalized.uuid);
+    if (!document2) {
+      return fallback;
+    }
+    return {
+      ...fallback,
+      name: document2.name ?? normalized.uuid,
+      img: document2.img ?? "icons/svg/item-bag.svg",
+      found: document2.documentName === "Item",
+      documentType: document2.documentName ?? ""
+    };
+  }
+  getImportEntries(payload) {
+    if (Array.isArray(payload)) {
+      return payload;
+    }
+    if (!payload || typeof payload !== "object") {
+      return [];
+    }
+    const data = payload;
+    if (Array.isArray(data.profiles)) {
+      return data.profiles;
+    }
+    if (data.type === "artisan-disassembly-profiles" && Array.isArray(data.disassemblyProfiles)) {
+      return data.disassemblyProfiles;
+    }
+    if (data.name && (Array.isArray(data.resources) || Array.isArray(data.tools))) {
+      return [data];
+    }
+    return [];
+  }
+  normalizeImportedProfile(entry) {
+    if (!entry || typeof entry !== "object") {
+      return null;
+    }
+    const raw = entry;
+    const name = String(raw.name ?? "").trim();
+    if (!name) {
+      return null;
+    }
+    return this.normalizeProfile({
+      ...raw,
+      id: foundry.utils.randomID(),
+      name
+    });
+  }
+  getProfessionLabel(profession) {
+    return new ProfessionService().getLabel(profession);
+  }
+  getQuantityLabel(component) {
+    if (component.minQuantity === component.maxQuantity) {
+      return String(component.minQuantity);
+    }
+    return `${component.minQuantity}-${component.maxQuantity}`;
+  }
+  resolveResourceWeight(configuredWeight, importedWeight) {
+    if (typeof configuredWeight === "number" && Number.isFinite(configuredWeight) && configuredWeight > 0) {
+      return configuredWeight;
+    }
+    if (typeof importedWeight === "number" && Number.isFinite(importedWeight) && importedWeight > 0) {
+      return importedWeight;
+    }
+    return 0.1;
+  }
+  getItemWeight(document2) {
+    const candidates = [
+      foundry.utils.getProperty(document2, "system.weight"),
+      foundry.utils.getProperty(document2, "system.properties.weight"),
+      foundry.utils.getProperty(document2, "system.bulk"),
+      foundry.utils.getProperty(document2, "system.quantity.weight")
+    ];
+    for (const candidate of candidates) {
+      const value = Number(candidate);
+      if (Number.isFinite(value) && value > 0) {
+        return value;
+      }
+    }
+    return null;
+  }
+  getActorProficiencyBonus(actor) {
+    const candidates = [
+      foundry.utils.getProperty(actor, "system.attributes.prof"),
+      foundry.utils.getProperty(actor, "system.attributes.prof.value"),
+      foundry.utils.getProperty(actor, "system.attributes.proficiency"),
+      foundry.utils.getProperty(actor, "system.attributes.proficiency.value"),
+      foundry.utils.getProperty(actor, "system.prof"),
+      foundry.utils.getProperty(actor, "system.prof.value"),
+      foundry.utils.getProperty(actor, "system.details.proficiencyBonus"),
+      foundry.utils.getProperty(actor, "system.details.prof")
+    ];
+    for (const value of candidates) {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric) && numeric > 0) {
+        return Math.floor(numeric);
+      }
+    }
+    return 0;
+  }
+  actorIsProficientWithTool(actor, actorItem, sourceItem) {
+    if (!actorItem) {
+      return false;
+    }
+    if (this.readItemProficiency(actorItem)) {
+      return true;
+    }
+    const identifierCandidates = this.getToolIdentifierCandidates(actorItem, sourceItem);
+    const actorTools = foundry.utils.getProperty(actor, "system.tools");
+    if (!actorTools || typeof actorTools !== "object") {
+      return false;
+    }
+    for (const key of identifierCandidates) {
+      const toolData = actorTools[key];
+      if (this.readToolDataProficiency(toolData)) {
+        return true;
+      }
+    }
+    for (const toolData of Object.values(actorTools)) {
+      const label = String(toolData?.label ?? toolData?.name ?? toolData?.id ?? "").trim().toLowerCase();
+      if (!label) {
+        continue;
+      }
+      if (identifierCandidates.includes(label) && this.readToolDataProficiency(toolData)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  readItemProficiency(item) {
+    const candidates = [
+      foundry.utils.getProperty(item, "system.proficient"),
+      foundry.utils.getProperty(item, "system.proficiency"),
+      foundry.utils.getProperty(item, "system.prof"),
+      foundry.utils.getProperty(item, "system.prof.hasProficiency"),
+      foundry.utils.getProperty(item, "system.proficiencies.value")
+    ];
+    return candidates.some((value) => {
+      if (typeof value === "boolean") {
+        return value;
+      }
+      if (typeof value === "number") {
+        return value > 0;
+      }
+      if (typeof value === "string") {
+        const clean = value.trim().toLowerCase();
+        return clean === "true" || clean === "proficient" || clean === "prof" || Number(clean) > 0;
+      }
+      return false;
+    });
+  }
+  readToolDataProficiency(toolData) {
+    if (!toolData) {
+      return false;
+    }
+    const candidates = [toolData.value, toolData.prof, toolData.proficient, toolData.proficiency, toolData.hasProficiency];
+    return candidates.some((value) => {
+      if (typeof value === "boolean") {
+        return value;
+      }
+      if (typeof value === "number") {
+        return value > 0;
+      }
+      if (typeof value === "string") {
+        const clean = value.trim().toLowerCase();
+        return clean === "true" || clean === "proficient" || clean === "prof" || Number(clean) > 0;
+      }
+      return false;
+    });
+  }
+  getToolIdentifierCandidates(actorItem, sourceItem) {
+    const values = [
+      actorItem?.system?.identifier,
+      actorItem?.system?.type?.value,
+      actorItem?.system?.type,
+      actorItem?.slug,
+      actorItem?.name,
+      sourceItem?.system?.identifier,
+      sourceItem?.system?.type?.value,
+      sourceItem?.system?.type,
+      sourceItem?.slug,
+      sourceItem?.name
+    ];
+    return Array.from(new Set(values.map((value) => String(value ?? "").trim().toLowerCase()).filter((value) => value.length > 0)));
+  }
+  async safeFromUuid(uuid) {
+    try {
+      return await fromUuid(uuid);
+    } catch (_error) {
+      return null;
+    }
+  }
+  escapeHtml(value) {
+    return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+  }
+};
+
 // src/services/foraging-service.ts
 var ForagingService = class _ForagingService {
   static SETTING_SCOPE = "artisan";
@@ -1916,7 +3258,7 @@ var ForagingService = class _ForagingService {
   async createProfile() {
     const profile = {
       id: foundry.utils.randomID(),
-      name: "Nuova lista Foraging",
+      name: "Nuova lista Raccolta",
       biome: "foresta",
       profession: "erborista",
       professionLevel: 1,
@@ -1924,6 +3266,8 @@ var ForagingService = class _ForagingService {
       dc: 10,
       time: 1,
       maxResources: 3,
+      toolRequirement: "optional",
+      toolCriticalDamage: false,
       resources: [],
       tools: []
     };
@@ -2008,7 +3352,7 @@ var ForagingService = class _ForagingService {
       };
     });
     await this.saveProfiles(nextProfiles);
-    ui.notifications.info(`${document2.name} aggiunto alla lista Foraging.`);
+    ui.notifications.info(`${document2.name} aggiunto alla lista Raccolta.`);
   }
   async removeComponent(profileId, collection, index) {
     const profiles = this.getProfiles();
@@ -2049,12 +3393,12 @@ var ForagingService = class _ForagingService {
     const profiles = this.getProfiles();
     const target = profiles.find((profile) => profile.id === id);
     if (!target) {
-      ui.notifications.warn("Lista Foraging non trovata.");
+      ui.notifications.warn("Lista di raccolta non trovata.");
       return;
     }
     const nextProfiles = profiles.filter((profile) => profile.id !== id);
     await this.saveProfiles(nextProfiles);
-    ui.notifications.info(`Lista Foraging eliminata: ${target.name}`);
+    ui.notifications.info(`Lista Raccolta eliminata: ${target.name}`);
   }
   exportProfiles() {
     const data = JSON.stringify(
@@ -2140,16 +3484,22 @@ var ForagingService = class _ForagingService {
   async startForaging(profileId) {
     const profile = this.getProfile(profileId);
     if (!profile) {
-      ui.notifications.warn("Lista Foraging non trovata.");
+      ui.notifications.warn("Lista di raccolta non trovata.");
       return;
     }
     const actor = this.getSelectedActor();
     if (!actor) {
-      ui.notifications.warn("Seleziona un token con attore prima di usare Foraging.");
+      ui.notifications.warn("Seleziona un token con attore prima di usare Raccolta.");
       return;
     }
     if (profile.resources.length === 0) {
-      ui.notifications.warn("La lista Foraging non contiene risorse.");
+      ui.notifications.warn("La lista di raccolta non contiene risorse.");
+      return;
+    }
+    const toolRequirementResult = await this.checkToolRequirement(actor, profile);
+    if (!toolRequirementResult.allowed) {
+      await this.sendBlockedByToolRequirementToChat(actor, profile, toolRequirementResult.details);
+      ui.notifications.warn("Raccolta bloccata: manca uno strumento obbligatorio.");
       return;
     }
     const confirmation = await this.confirmForaging(profile, actor);
@@ -2197,7 +3547,7 @@ var ForagingService = class _ForagingService {
         resource.finalQuantity
       );
     }
-    const criticalFailureToolDamage = criticalFailure ? await this.damageForagingTool(actor, profile) : null;
+    const criticalFailureToolDamage = criticalFailure ? this.isProfileToolCriticalDamageEnabled(profile) ? await this.damageForagingTool(actor, profile) : game.i18n.localize("ARTISAN.ToolDamageDisabled") : null;
     const professionXpGained = success ? this.calculateForagingXp(profile, collectedResources.length, criticalSuccess) : 0;
     const actorProfessionAfterXp = professionXpGained > 0 ? await professionService.addActorProfessionXp(actor, profile.profession, professionXpGained) : actorProfession;
     await this.sendForagingResultToChat({
@@ -2227,13 +3577,13 @@ var ForagingService = class _ForagingService {
       criticalFailureToolDamage
     });
     if (criticalSuccess) {
-      ui.notifications.info("Foraging riuscito con successo critico.");
+      ui.notifications.info("Raccolta riuscita con successo critico.");
     } else if (success) {
-      ui.notifications.info("Foraging riuscito.");
+      ui.notifications.info("Raccolta riuscita.");
     } else if (criticalFailure) {
-      ui.notifications.error("Foraging fallito criticamente.");
+      ui.notifications.error("Raccolta fallita criticamente.");
     } else {
-      ui.notifications.warn("Foraging fallito.");
+      ui.notifications.warn("Raccolta fallita.");
     }
   }
   async confirmForaging(profile, actor) {
@@ -2279,7 +3629,7 @@ var ForagingService = class _ForagingService {
         `;
     return new Promise((resolve) => {
       new Dialog({
-        title: "Avvia Foraging",
+        title: "Avvia Raccolta",
         content,
         buttons: {
           cancel: {
@@ -2287,7 +3637,7 @@ var ForagingService = class _ForagingService {
             callback: () => resolve(false)
           },
           confirm: {
-            label: "Tira Foraging",
+            label: "Tira Raccolta",
             callback: () => resolve(true)
           }
         },
@@ -2378,6 +3728,30 @@ var ForagingService = class _ForagingService {
     const max = Math.max(min, Math.floor(Number(maxQuantity || min)));
     return min + Math.floor(Math.random() * (max - min + 1));
   }
+  async checkToolRequirement(actor, profile) {
+    const preview = await this.getToolQuantityBonus(actor, profile);
+    if (profile.toolRequirement !== "required" || profile.tools.length === 0) {
+      return { allowed: true, details: preview.details };
+    }
+    return {
+      allowed: preview.details.some((detail) => detail.possessed),
+      details: preview.details
+    };
+  }
+  async sendBlockedByToolRequirementToChat(actor, profile, details) {
+    const rows = details.length > 0 ? details.map((detail) => `<li>${this.escapeHtml(detail.name)} \u2014 ${detail.possessed ? detail.proficient ? "posseduto e competente" : "posseduto ma non competente" : "non posseduto"}</li>`).join("") : "<li>Nessuno strumento configurato.</li>";
+    await ChatMessage.create({
+      content: `
+                <div class="artisan-chat-card">
+                    <h2>Raccolta bloccata</h2>
+                    <p><strong>${this.escapeHtml(actor.name ?? "PG")}</strong> non possiede nessuno degli strumenti obbligatori per <strong>${this.escapeHtml(profile.name)}</strong>.</p>
+                    <ul>${rows}</ul>
+                    <p><em>La competenza serve solo per il bonus; per sbloccare l\u2019azione basta possedere almeno uno strumento obbligatorio.</em></p>
+                </div>
+            `,
+      speaker: ChatMessage.getSpeaker({ actor })
+    });
+  }
   async getToolQuantityBonus(actor, profile) {
     let totalBonus = 0;
     const details = [];
@@ -2388,8 +3762,8 @@ var ForagingService = class _ForagingService {
       const possessed = !!actorItem;
       const proficient = possessed ? this.actorIsProficientWithTool(actor, actorItem, document2) : false;
       const proficiencyBonus = this.getActorProficiencyBonus(actor);
-      const quantity = Math.max(0, proficiencyBonus);
-      const applied = possessed && proficient && quantity > 0;
+      const applied = possessed && proficient && proficiencyBonus > 0;
+      const quantity = applied ? Math.max(0, proficiencyBonus) : 0;
       if (applied) {
         totalBonus += quantity;
       }
@@ -2406,9 +3780,26 @@ var ForagingService = class _ForagingService {
       details
     };
   }
+  isProfileToolCriticalDamageEnabled(profile) {
+    return Boolean(profile.toolCriticalDamage ?? false);
+  }
+  getArtisanModuleSetting(key, defaultValue) {
+    try {
+      const settings = game.settings.get("artisan", "moduleSettings");
+      if (settings && typeof settings[key] === "boolean") {
+        return settings[key];
+      }
+      if (settings && typeof settings.enableToolDamage === "boolean") {
+        return settings.enableToolDamage;
+      }
+    } catch (_error) {
+      return defaultValue;
+    }
+    return defaultValue;
+  }
   async damageForagingTool(actor, profile) {
     if (profile.tools.length === 0) {
-      return "Nessuno strumento configurato nella lista Foraging.";
+      return "Nessuno strumento configurato nella lista Raccolta.";
     }
     for (const tool of profile.tools) {
       const document2 = await this.safeFromUuid(tool.uuid);
@@ -2555,7 +3946,7 @@ var ForagingService = class _ForagingService {
   async addItemToActor(actor, uuid, quantity) {
     const source = await this.safeFromUuid(uuid);
     if (!source || source.documentName !== "Item") {
-      ui.notifications.warn(`Output Foraging non valido: ${uuid}`);
+      ui.notifications.warn(`Output Raccolta non valido: ${uuid}`);
       return;
     }
     const existing = this.findActorItemBySource(actor, uuid, source.name ?? "");
@@ -2662,7 +4053,7 @@ var ForagingService = class _ForagingService {
     return criticalSuccess ? baseXp * 2 : baseXp;
   }
   async sendForagingResultToChat(data) {
-    const title = data.criticalSuccess ? "\u{1F31F} Successo critico Foraging" : data.criticalFailure ? "\u{1F4A5} Fallimento critico Foraging" : data.success ? "\u2705 Foraging riuscito" : "\u274C Foraging fallito";
+    const title = data.criticalSuccess ? "\u{1F31F} Successo critico Raccolta" : data.criticalFailure ? "\u{1F4A5} Fallimento critico Raccolta" : data.success ? "\u2705 Raccolta riuscita" : "\u274C Raccolta fallita";
     const specialResultText = data.criticalSuccess ? "Successo critico: quantit\xE0 dopo moltiplicatore raddoppiata." : data.criticalFailure ? `Fallimento critico: prova fallita automaticamente, nessuna risorsa raccolta. ${data.criticalFailureToolDamage ?? ""}`.trim() : "-";
     const resourceRows = data.collectedResources.length > 0 ? data.collectedResources.map((resource) => `
                 <tr>
@@ -2825,7 +4216,7 @@ var ForagingService = class _ForagingService {
       _ForagingService.SETTING_SCOPE,
       _ForagingService.SETTING_KEY,
       {
-        name: "Artisan Foraging Profiles",
+        name: "Artisan Raccolta Profiles",
         scope: "world",
         config: false,
         type: Array,
@@ -2856,7 +4247,7 @@ var ForagingService = class _ForagingService {
     const profession = professionService.getProfession(rawProfession) ? professionService.normalizeId(rawProfession) : rawProfession;
     return {
       id: String(profile.id || foundry.utils.randomID()),
-      name: String(profile.name || "Lista Foraging"),
+      name: String(profile.name || "Lista Raccolta"),
       biome: String(profile.biome || "foresta"),
       profession,
       professionLevel: professionService.normalizeLevel(profile.professionLevel ?? 1),
@@ -2864,6 +4255,8 @@ var ForagingService = class _ForagingService {
       dc: Number(profile.dc ?? 10),
       time: Number(profile.time ?? 1),
       maxResources: Math.max(1, Math.floor(Number(profile.maxResources ?? 1))),
+      toolRequirement: String(profile.toolRequirement || "optional") === "required" ? "required" : "optional",
+      toolCriticalDamage: Boolean(profile.toolCriticalDamage ?? false),
       resources: this.normalizeComponents(profile.resources),
       tools: this.normalizeComponents(profile.tools)
     };
@@ -3048,7 +4441,7 @@ var HarvestService = class _HarvestService {
   async createProfile() {
     const profile = {
       id: foundry.utils.randomID(),
-      name: "Nuova lista Harvest",
+      name: "Nuova lista Caccia",
       biome: "creatura",
       creatureType: "beast",
       profession: "erborista",
@@ -3057,7 +4450,9 @@ var HarvestService = class _HarvestService {
       dc: 10,
       time: 1,
       maxResources: 3,
+      harvestOutputMode: "all",
       toolRequirement: "optional",
+      toolCriticalDamage: false,
       consumeRequiredTools: false,
       resources: [],
       tools: []
@@ -3147,7 +4542,7 @@ var HarvestService = class _HarvestService {
       };
     });
     await this.saveProfiles(nextProfiles);
-    ui.notifications.info(`${document2.name} aggiunto alla lista Harvest.`);
+    ui.notifications.info(`${document2.name} aggiunto alla lista Caccia.`);
   }
   async removeComponent(profileId, collection, index) {
     const profiles = this.getProfiles();
@@ -3188,12 +4583,12 @@ var HarvestService = class _HarvestService {
     const profiles = this.getProfiles();
     const target = profiles.find((profile) => profile.id === id);
     if (!target) {
-      ui.notifications.warn("Lista Harvest non trovata.");
+      ui.notifications.warn("Lista di caccia non trovata.");
       return;
     }
     const nextProfiles = profiles.filter((profile) => profile.id !== id);
     await this.saveProfiles(nextProfiles);
-    ui.notifications.info(`Lista Harvest eliminata: ${target.name}`);
+    ui.notifications.info(`Lista Caccia eliminata: ${target.name}`);
   }
   exportProfiles() {
     const data = JSON.stringify(
@@ -3279,22 +4674,22 @@ var HarvestService = class _HarvestService {
   async startHarvest(profileId) {
     const profile = this.getProfile(profileId);
     if (!profile) {
-      ui.notifications.warn("Lista Harvest non trovata.");
+      ui.notifications.warn("Lista di caccia non trovata.");
       return;
     }
     const actor = this.getSelectedActor();
     if (!actor) {
-      ui.notifications.warn("Seleziona un token con attore prima di usare Harvest.");
+      ui.notifications.warn("Seleziona un token con attore prima di usare Caccia.");
       return;
     }
     if (profile.resources.length === 0) {
-      ui.notifications.warn("La lista Harvest non contiene parti.");
+      ui.notifications.warn("La lista di caccia non contiene parti.");
       return;
     }
     const toolRequirementResult = await this.checkHarvestToolRequirement(actor, profile);
     if (!toolRequirementResult.allowed) {
       await this.sendHarvestBlockedByToolRequirementToChat(actor, profile, toolRequirementResult.details);
-      ui.notifications.warn("Harvest bloccato: manca uno strumento richiesto.");
+      ui.notifications.warn("Caccia bloccata: manca uno strumento richiesto.");
       return;
     }
     const confirmation = await this.confirmHarvest(profile, actor);
@@ -3346,7 +4741,7 @@ var HarvestService = class _HarvestService {
       );
     }
     const consumedRequiredTools = success ? await this.consumeRequiredHarvestTools(actor, profile, collectedResources) : [];
-    const criticalFailureToolDamage = criticalFailure ? await this.damageHarvestTool(actor, profile) : null;
+    const criticalFailureToolDamage = criticalFailure ? this.isProfileToolCriticalDamageEnabled(profile) ? await this.damageHarvestTool(actor, profile) : game.i18n.localize("ARTISAN.ToolDamageDisabled") : null;
     const professionXpGained = success ? this.calculateHarvestXp(profile, collectedResources.length, criticalSuccess) : 0;
     const actorProfessionAfterXp = professionXpGained > 0 ? await professionService.addActorProfessionXp(actor, profile.profession, professionXpGained) : actorProfession;
     await this.sendHarvestResultToChat({
@@ -3378,13 +4773,13 @@ var HarvestService = class _HarvestService {
       consumedRequiredTools
     });
     if (criticalSuccess) {
-      ui.notifications.info("Harvest riuscito con successo critico.");
+      ui.notifications.info("Caccia riuscita con successo critico.");
     } else if (success) {
-      ui.notifications.info("Harvest riuscito.");
+      ui.notifications.info("Caccia riuscita.");
     } else if (criticalFailure) {
-      ui.notifications.error("Harvest fallito criticamente.");
+      ui.notifications.error("Caccia fallita criticamente.");
     } else {
-      ui.notifications.warn("Harvest fallito.");
+      ui.notifications.warn("Caccia fallita.");
     }
   }
   async confirmHarvest(profile, actor) {
@@ -3416,11 +4811,12 @@ var HarvestService = class _HarvestService {
                 <p><strong>Professione:</strong> ${this.escapeHtml(this.getProfessionLabel(profile.profession))}</p>
                 <p><strong>Livello professione PG:</strong> ${actorProfession.level}</p>
                 <p><strong>XP professione PG:</strong> ${actorProfession.xp}</p>
-                <p><strong>Moltiplicatore harvest PG:</strong> ${this.escapeHtml(actorProfession.gatheringMultiplierLabel)}</p>
+                <p><strong>Moltiplicatore caccia PG:</strong> ${this.escapeHtml(actorProfession.gatheringMultiplierLabel)}</p>
                 <p><strong>Abilit\xE0:</strong> ${this.escapeHtml(profile.skill || "Non impostata")}</p>
                 <p><strong>CD:</strong> ${profile.dc}</p>
                 <p><strong>Tempo:</strong> ${this.formatMinutes(profile.time)}</p>
                 <p><strong>Massimo parti diverse:</strong> ${profile.maxResources}</p>
+                <p><strong>Modalit\xE0 risultati:</strong> ${this.escapeHtml(this.getHarvestOutputModeLabel(profile.harvestOutputMode))}</p>
                 <p><strong>Strumenti:</strong> ${this.escapeHtml(this.getToolRequirementLabel(profile.toolRequirement))}</p>
                 <p><strong>Consuma strumenti richiesti:</strong> ${profile.consumeRequiredTools ? "S\xEC" : "No"}</p>
 
@@ -3433,7 +4829,7 @@ var HarvestService = class _HarvestService {
         `;
     return new Promise((resolve) => {
       new Dialog({
-        title: "Avvia Harvest",
+        title: "Avvia Caccia",
         content,
         buttons: {
           cancel: {
@@ -3441,7 +4837,7 @@ var HarvestService = class _HarvestService {
             callback: () => resolve(false)
           },
           confirm: {
-            label: "Tira Harvest",
+            label: "Tira Caccia",
             callback: () => resolve(true)
           }
         },
@@ -3495,8 +4891,8 @@ var HarvestService = class _HarvestService {
       "resources",
       profile.resources
     );
-    const availableResources = resources.filter((resource) => {
-      if (!resource.found || resource.weight <= 0) {
+    const baseAvailableResources = resources.filter((resource) => {
+      if (!resource.found) {
         return false;
       }
       if (!actor) {
@@ -3504,6 +4900,19 @@ var HarvestService = class _HarvestService {
       }
       return this.actorHasRequiredToolForResource(actor, resource);
     });
+    if (baseAvailableResources.length === 0) {
+      return [];
+    }
+    if (profile.harvestOutputMode === "all") {
+      return baseAvailableResources.map((resource) => ({
+        ...resource,
+        rolledQuantity: this.rollQuantityRange(
+          resource.minQuantity,
+          resource.maxQuantity
+        )
+      }));
+    }
+    const availableResources = baseAvailableResources.filter((resource) => resource.weight > 0);
     if (availableResources.length === 0) {
       return [];
     }
@@ -3616,7 +5025,7 @@ var HarvestService = class _HarvestService {
       speaker: ChatMessage.getSpeaker({ actor }),
       content: `
                 <div class="artisan-chat-card artisan-chat-card--blocked">
-                    <h2>Harvest bloccato</h2>
+                    <h2>Caccia bloccata</h2>
                     <p><strong>Attore:</strong> ${this.escapeHtml(actor.name ?? "Attore")}</p>
                     <p><strong>Lista:</strong> ${this.escapeHtml(profile.name)}</p>
                     <p>Questa lista richiede almeno uno degli strumenti configurati.</p>
@@ -3625,6 +5034,16 @@ var HarvestService = class _HarvestService {
                 </div>
             `
     });
+  }
+  normalizeHarvestOutputMode(value) {
+    const clean = String(value ?? "all").trim().toLowerCase();
+    if (!clean || clean === "all" || clean === "tutte" || clean === "tutti" || clean === "complete" || clean === "completo") {
+      return "all";
+    }
+    return "random";
+  }
+  getHarvestOutputModeLabel(value) {
+    return this.normalizeHarvestOutputMode(value) === "all" ? "Tutte le parti disponibili" : "Mista casuale";
   }
   getToolRequirementLabel(value) {
     return value === "required" ? "richiede almeno uno strumento posseduto" : "facoltativi, usati solo come bonus alla prova";
@@ -3647,8 +5066,8 @@ var HarvestService = class _HarvestService {
       const possessed = !!actorItem;
       const proficient = possessed ? this.actorIsProficientWithTool(actor, actorItem, document2) : false;
       const proficiencyBonus = this.getActorProficiencyBonus(actor);
-      const quantity = Math.max(0, proficiencyBonus);
-      const applied = possessed && proficient && quantity > 0;
+      const applied = possessed && proficient && proficiencyBonus > 0;
+      const quantity = applied ? Math.max(0, proficiencyBonus) : 0;
       if (applied) {
         totalBonus += quantity;
       }
@@ -3723,9 +5142,26 @@ var HarvestService = class _HarvestService {
     }
     return details;
   }
+  isProfileToolCriticalDamageEnabled(profile) {
+    return Boolean(profile.toolCriticalDamage ?? false);
+  }
+  getArtisanModuleSetting(key, defaultValue) {
+    try {
+      const settings = game.settings.get("artisan", "moduleSettings");
+      if (settings && typeof settings[key] === "boolean") {
+        return settings[key];
+      }
+      if (settings && typeof settings.enableToolDamage === "boolean") {
+        return settings.enableToolDamage;
+      }
+    } catch (_error) {
+      return defaultValue;
+    }
+    return defaultValue;
+  }
   async damageHarvestTool(actor, profile) {
     if (profile.tools.length === 0) {
-      return "Nessuno strumento configurato nella lista Harvest.";
+      return "Nessuno strumento configurato nella lista Caccia.";
     }
     for (const tool of profile.tools) {
       const document2 = await this.safeFromUuid(tool.uuid);
@@ -3872,7 +5308,7 @@ var HarvestService = class _HarvestService {
   async addItemToActor(actor, uuid, quantity) {
     const source = await this.safeFromUuid(uuid);
     if (!source || source.documentName !== "Item") {
-      ui.notifications.warn(`Output Harvest non valido: ${uuid}`);
+      ui.notifications.warn(`Output Caccia non valido: ${uuid}`);
       return;
     }
     const existing = this.findActorItemBySource(actor, uuid, source.name ?? "");
@@ -3979,8 +5415,8 @@ var HarvestService = class _HarvestService {
     return criticalSuccess ? baseXp * 2 : baseXp;
   }
   async sendHarvestResultToChat(data) {
-    const title = data.criticalSuccess ? "\u{1F31F} Successo critico Harvest" : data.criticalFailure ? "\u{1F4A5} Fallimento critico Harvest" : data.success ? "\u2705 Harvest riuscito" : "\u274C Harvest fallito";
-    const specialResultText = data.criticalSuccess ? "Successo critico: quantit\xE0 dopo moltiplicatore raddoppiata." : data.criticalFailure ? `Fallimento critico: prova fallita automaticamente, nessuna parte harvest. ${data.criticalFailureToolDamage ?? ""}`.trim() : "-";
+    const title = data.criticalSuccess ? "\u{1F31F} Successo critico Caccia" : data.criticalFailure ? "\u{1F4A5} Fallimento critico Caccia" : data.success ? "\u2705 Caccia riuscita" : "\u274C Caccia fallita";
+    const specialResultText = data.criticalSuccess ? "Successo critico: quantit\xE0 dopo moltiplicatore raddoppiata." : data.criticalFailure ? `Fallimento critico: prova fallita automaticamente, nessuna parte da caccia. ${data.criticalFailureToolDamage ?? ""}`.trim() : "-";
     const resourceRows = data.collectedResources.length > 0 ? data.collectedResources.map((resource) => `
                 <tr>
                     <td>${this.escapeHtml(resource.name)}</td>
@@ -3994,7 +5430,7 @@ var HarvestService = class _HarvestService {
                 </tr>
             `).join("") : `
                 <tr>
-                    <td colspan="8">Nessuna parte harvest.</td>
+                    <td colspan="8">Nessuna parte da caccia.</td>
                 </tr>
             `;
     const failedResourceRows = data.failedResources.length > 0 ? data.failedResources.map((resource) => `
@@ -4010,7 +5446,7 @@ var HarvestService = class _HarvestService {
                     <td colspan="5">Nessuna parte rovinata dalla rarit\xE0.</td>
                 </tr>
             `;
-    const resultText = data.success && data.collectedResources.length > 0 ? `${data.collectedResources.length} parti diverse aggiunte all'attore.` : data.success && data.failedResources.length > 0 ? "Harvest riuscito, ma tutte le parti selezionate sono state rovinate dalla rarit\xE0." : "Nessuna parte harvest.";
+    const resultText = data.success && data.collectedResources.length > 0 ? `${data.collectedResources.length} parti diverse aggiunte all'attore.` : data.success && data.failedResources.length > 0 ? "Caccia riuscita, ma tutte le parti selezionate sono state rovinate dalla rarit\xE0." : "Nessuna parte da caccia.";
     const consumedRequiredToolsText = data.consumedRequiredTools.length > 0 ? data.consumedRequiredTools.map((tool) => {
       const quantityText = tool.consumed ? `${tool.beforeQuantity} \u2192 ${tool.afterQuantity}` : "non consumato";
       return `${this.escapeHtml(tool.name)}: ${quantityText} \u2014 ${this.escapeHtml(tool.reason)}`;
@@ -4059,7 +5495,7 @@ var HarvestService = class _HarvestService {
                             <td>${this.escapeHtml(data.actorProfessionSource)}</td>
                         </tr>
                         <tr>
-                            <td><strong>Moltiplicatore harvest PG</strong></td>
+                            <td><strong>Moltiplicatore caccia PG</strong></td>
                             <td>${this.escapeHtml(data.gatheringMultiplierLabel)}</td>
                         </tr>
                         <tr>
@@ -4101,6 +5537,10 @@ var HarvestService = class _HarvestService {
                         <tr>
                             <td><strong>Massimo parti diverse</strong></td>
                             <td>${data.profile.maxResources}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Modalit\xE0 risultati</strong></td>
+                            <td>${this.escapeHtml(this.getHarvestOutputModeLabel(data.profile.harvestOutputMode))}</td>
                         </tr>
                         <tr>
                             <td><strong>Parti diverse raccolte</strong></td>
@@ -4185,7 +5625,7 @@ var HarvestService = class _HarvestService {
       _HarvestService.SETTING_SCOPE,
       _HarvestService.SETTING_KEY,
       {
-        name: "Artisan Harvest Profiles",
+        name: "Artisan Caccia Profiles",
         scope: "world",
         config: false,
         type: Array,
@@ -4216,7 +5656,7 @@ var HarvestService = class _HarvestService {
     const profession = professionService.getProfession(rawProfession) ? professionService.normalizeId(rawProfession) : rawProfession;
     return {
       id: String(profile.id || foundry.utils.randomID()),
-      name: String(profile.name || "Lista Harvest"),
+      name: String(profile.name || "Lista Caccia"),
       biome: String(profile.biome || "creatura"),
       creatureType: this.normalizeCreatureType(profile.creatureType ?? profile.biome ?? "beast"),
       profession,
@@ -4225,7 +5665,9 @@ var HarvestService = class _HarvestService {
       dc: Number(profile.dc ?? 10),
       time: Number(profile.time ?? 1),
       maxResources: Math.max(1, Math.floor(Number(profile.maxResources ?? 1))),
+      harvestOutputMode: this.normalizeHarvestOutputMode(profile.harvestOutputMode),
       toolRequirement: String(profile.toolRequirement || "optional") === "required" ? "required" : "optional",
+      toolCriticalDamage: Boolean(profile.toolCriticalDamage ?? false),
       consumeRequiredTools: Boolean(profile.consumeRequiredTools ?? false),
       resources: this.normalizeComponents(profile.resources),
       tools: this.normalizeComponents(profile.tools)
@@ -4633,6 +6075,10 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
   selectedSectionId = "recipes";
   selectedForagingProfileId = null;
   selectedHarvestProfileId = null;
+  selectedDisassemblyProfileId = null;
+  expandedExplorerSectionIds = /* @__PURE__ */ new Set([
+    "recipes"
+  ]);
   recipeSearchText = "";
   recipeFilterProfession = "all";
   recipeFilterCategory = "all";
@@ -4645,8 +6091,8 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       icon: "fa-solid fa-hammer"
     },
     position: {
-      width: 980,
-      height: 760
+      width: 1120,
+      height: 820
     },
     classes: ["artisan", "artisan-manager"]
   };
@@ -4669,6 +6115,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const recipeService = new RecipeService();
     const foragingService = new ForagingService();
     const harvestService = new HarvestService();
+    const disassemblyService2 = new DisassemblyService();
     const professionService = new ProfessionService();
     const allRecipes = recipeService.getExplorerRecipes();
     const selectedActor = canvas?.tokens?.controlled?.[0]?.actor ?? null;
@@ -4687,52 +6134,93 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const harvestData = await harvestService.getManagerData(
       this.selectedHarvestProfileId
     );
+    const disassemblyData = await disassemblyService2.getManagerData(
+      this.selectedDisassemblyProfileId
+    );
     if (!this.selectedForagingProfileId && foragingData.selectedProfile) {
       this.selectedForagingProfileId = foragingData.selectedProfile.id;
     }
     if (!this.selectedHarvestProfileId && harvestData.selectedProfile) {
       this.selectedHarvestProfileId = harvestData.selectedProfile.id;
     }
+    if (!this.selectedDisassemblyProfileId && disassemblyData.selectedProfile) {
+      this.selectedDisassemblyProfileId = disassemblyData.selectedProfile.id;
+    }
     const explorerData = [
-      {
+      this.getExplorerSectionView({
         id: "recipes",
         label: game.i18n.localize("ARTISAN.Recipes"),
         icon: "fa-solid fa-book",
         count: recipes.length,
         items: recipes.map((recipe) => ({
           ...recipe,
+          kind: "recipe",
           ...this.getRecipeCraftingRequirementView(recipe, professionService, selectedActor),
-          selected: recipe.id === this.selectedRecipeId
+          selected: this.selectedSectionId === "recipes" && recipe.id === this.selectedRecipeId
         }))
-      },
-      {
+      }),
+      this.getExplorerSectionView({
         id: "foraging",
         label: game.i18n.localize("ARTISAN.Foraging"),
         icon: "fa-solid fa-leaf",
         count: foragingData.profiles.length,
-        items: []
-      },
-      {
+        items: foragingData.profiles.map((profile) => ({
+          ...profile,
+          kind: "foraging",
+          selected: this.selectedSectionId === "foraging" && profile.id === this.selectedForagingProfileId
+        }))
+      }),
+      this.getExplorerSectionView({
         id: "harvest",
         label: game.i18n.localize("ARTISAN.Harvest"),
         icon: "fa-solid fa-paw",
         count: harvestData.profiles.length,
-        items: []
-      },
-      {
-        id: "professions",
-        label: game.i18n.localize("ARTISAN.ActorProfessions"),
-        icon: "fa-solid fa-user-gear",
-        count: selectedActor ? 1 : 0,
-        items: []
-      },
-      {
-        id: "activity",
-        label: game.i18n.localize("ARTISAN.ActivityLog"),
-        icon: "fa-solid fa-clock-rotate-left",
-        count: this.getActivityLog().length,
-        items: []
-      }
+        items: harvestData.profiles.map((profile) => ({
+          ...profile,
+          kind: "harvest",
+          selected: this.selectedSectionId === "harvest" && profile.id === this.selectedHarvestProfileId
+        }))
+      }),
+      this.getExplorerSectionView({
+        id: "disassembly",
+        label: game.i18n.localize("ARTISAN.Disassembly"),
+        icon: "fa-solid fa-screwdriver-wrench",
+        count: disassemblyData.profiles.length,
+        items: disassemblyData.profiles.map((profile) => ({
+          ...profile,
+          kind: "disassembly",
+          selected: this.selectedSectionId === "disassembly" && profile.id === this.selectedDisassemblyProfileId
+        }))
+      }),
+      this.getExplorerSectionView({
+        id: "management",
+        label: game.i18n.localize("ARTISAN.Management"),
+        icon: "fa-solid fa-sliders",
+        count: 3,
+        items: [
+          {
+            id: "professions",
+            kind: "section",
+            label: game.i18n.localize("ARTISAN.ActorProfessions"),
+            icon: "fa-solid fa-user-gear",
+            selected: this.selectedSectionId === "professions"
+          },
+          {
+            id: "activity",
+            kind: "section",
+            label: game.i18n.localize("ARTISAN.ActivityLog"),
+            icon: "fa-solid fa-clock-rotate-left",
+            selected: this.selectedSectionId === "activity"
+          },
+          {
+            id: "settings",
+            kind: "section",
+            label: game.i18n.localize("ARTISAN.ModuleSettings"),
+            icon: "fa-solid fa-gear",
+            selected: this.selectedSectionId === "settings"
+          }
+        ]
+      })
     ];
     const selectedRecipe = this.selectedRecipeId ? await recipeService.getInspectorData(this.selectedRecipeId) : null;
     const selectedRecipeItem = this.selectedRecipeId ? game.items.get(this.selectedRecipeId) : null;
@@ -4769,16 +6257,36 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       selectedActor,
       harvestData.selectedProfile.profession
     ) : null;
+    const selectedDisassemblyActorProfession = selectedActor && disassemblyData.selectedProfile ? professionService.getActorProfession(
+      selectedActor,
+      disassemblyData.selectedProfile.profession
+    ) : null;
     const selectedActorProfessions = professionService.getActorProfessions(selectedActor);
+    const selectedForagingActorProfessionSummary = this.getActorProfessionInlineSummary(
+      selectedActor,
+      selectedForagingActorProfession,
+      game.i18n.localize("ARTISAN.Gathering").toLowerCase()
+    );
+    const selectedHarvestActorProfessionSummary = this.getActorProfessionInlineSummary(
+      selectedActor,
+      selectedHarvestActorProfession,
+      game.i18n.localize("ARTISAN.Extraction").toLowerCase()
+    );
+    const selectedDisassemblyActorProfessionSummary = this.getActorProfessionInlineSummary(
+      selectedActor,
+      selectedDisassemblyActorProfession,
+      game.i18n.localize("ARTISAN.Disassembly").toLowerCase()
+    );
     return {
       title: "Artisan",
-      subtitle: "Universal Crafting System",
+      subtitle: game.i18n.localize("ARTISAN.Subtitle"),
       explorer: explorerData,
       selectedRecipe: selectedRecipeView,
       selectedSectionId: this.selectedSectionId,
       isRecipesSection: this.selectedSectionId === "recipes",
       isForagingSection: this.selectedSectionId === "foraging",
       isHarvestSection: this.selectedSectionId === "harvest",
+      isDisassemblySection: this.selectedSectionId === "disassembly",
       isProfessionsSection: this.selectedSectionId === "professions",
       isActivitySection: this.selectedSectionId === "activity",
       isPresetsSection: this.selectedSectionId === "presets",
@@ -4804,11 +6312,19 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       selectedForagingProfile: foragingData.selectedProfile,
       selectedForagingActorName: selectedActor?.name ?? "",
       selectedForagingActorProfession,
+      selectedForagingActorProfessionSummary,
       harvestProfiles: harvestData.profiles,
       harvestProfessionOptions: professionService.getOptions(),
       selectedHarvestProfile: harvestData.selectedProfile,
       selectedHarvestActorName: selectedActor?.name ?? "",
       selectedHarvestActorProfession,
+      selectedHarvestActorProfessionSummary,
+      disassemblyProfiles: disassemblyData.profiles,
+      disassemblyProfessionOptions: professionService.getOptions(),
+      selectedDisassemblyProfile: disassemblyData.selectedProfile,
+      selectedDisassemblyActorName: selectedActor?.name ?? "",
+      selectedDisassemblyActorProfession,
+      selectedDisassemblyActorProfessionSummary,
       selectedActorName: selectedActor?.name ?? "",
       selectedActorProfessions,
       selectedActorProfessionSummary: this.getActorProfessionSummary(selectedActorProfessions)
@@ -4818,9 +6334,13 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     await super._onRender(context, options);
     this.syncForagingBiomeSelects();
     this.syncRecipeProfessionSelects();
+    this.syncRecipeQualityEffectSelects();
+    this.syncToolRequirementSelects();
     this.syncForagingProfessionSelects();
     this.syncHarvestCreatureTypeSelects();
     this.syncHarvestProfessionSelects();
+    this.syncHarvestOutputModeSelects();
+    this.syncDisassemblyProfessionSelects();
     this.syncHarvestRaritySelects();
     this.activateRecipeEditorListeners();
   }
@@ -4855,6 +6375,30 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       return;
     }
     select.value = current.value ? current.value.trim().toLowerCase() : "erborista";
+  }
+  syncRecipeQualityEffectSelects() {
+    const element = this.getRootElement();
+    if (!element) {
+      return;
+    }
+    const selects = element.querySelectorAll(
+      "select[data-artisan-quality-effect-select]"
+    );
+    for (const select of Array.from(selects)) {
+      select.value = select.dataset.currentEffect || "auto";
+    }
+  }
+  syncToolRequirementSelects() {
+    const element = this.getRootElement();
+    if (!element) {
+      return;
+    }
+    const selects = element.querySelectorAll(
+      "select[data-artisan-tool-requirement-select]"
+    );
+    for (const select of Array.from(selects)) {
+      select.value = select.dataset.currentRequirement === "required" ? "required" : "optional";
+    }
   }
   syncForagingProfessionSelects() {
     const element = this.getRootElement();
@@ -4904,6 +6448,22 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     select.value = current.value ? current.value.trim().toLowerCase() : "cacciatore";
   }
+  syncHarvestOutputModeSelects() {
+    const element = this.getRootElement();
+    if (!element) {
+      return;
+    }
+    const current = element.querySelector(
+      "[data-artisan-harvest-output-mode-current]"
+    );
+    const select = element.querySelector(
+      'select[data-artisan-harvest-field="harvestOutputMode"]'
+    );
+    if (!current || !select) {
+      return;
+    }
+    select.value = current.value || "random";
+  }
   syncHarvestRaritySelects() {
     const element = this.getRootElement();
     if (!element) {
@@ -4915,6 +6475,22 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     for (const select of Array.from(selects)) {
       select.value = select.dataset.currentRarity || "common";
     }
+  }
+  syncDisassemblyProfessionSelects() {
+    const element = this.getRootElement();
+    if (!element) {
+      return;
+    }
+    const current = element.querySelector(
+      "[data-artisan-disassembly-profession-current]"
+    );
+    const select = element.querySelector(
+      'select[data-artisan-disassembly-field="profession"]'
+    );
+    if (!current || !select) {
+      return;
+    }
+    select.value = current.value ? current.value.trim().toLowerCase() : "conciatore";
   }
   activateRecipeEditorListeners() {
     const element = this.getRootElement();
@@ -4959,6 +6535,14 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         void this.onHarvestComponentFieldChanged(target);
         return;
       }
+      if (target.matches("[data-artisan-disassembly-field]")) {
+        void this.onDisassemblyFieldChanged(target);
+        return;
+      }
+      if (target.matches("[data-artisan-disassembly-component-field]")) {
+        void this.onDisassemblyComponentFieldChanged(target);
+        return;
+      }
       if (target.matches("[data-artisan-actor-profession-field]")) {
         void this.onActorProfessionFieldChanged(target);
         return;
@@ -4983,6 +6567,10 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         void this.onImportHarvestFileChanged(target);
         return;
       }
+      if (target instanceof HTMLInputElement && target.matches("[data-artisan-import-disassembly-file]")) {
+        void this.onImportDisassemblyFileChanged(target);
+        return;
+      }
     });
     element.addEventListener("input", (event) => {
       const target = event.target;
@@ -4996,6 +6584,14 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     element.addEventListener("click", (event) => {
       const target = event.target;
       if (!(target instanceof HTMLElement)) {
+        return;
+      }
+      const sectionToggleButton = target.closest(
+        "[data-artisan-toggle-explorer-section]"
+      );
+      if (sectionToggleButton) {
+        event.preventDefault();
+        this.onToggleExplorerSectionClicked(sectionToggleButton);
         return;
       }
       const sectionButton = target.closest(
@@ -5312,6 +6908,70 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         this.onImportHarvestClicked();
         return;
       }
+      const newDisassemblyProfileButton = target.closest(
+        "[data-artisan-new-disassembly-profile]"
+      );
+      if (newDisassemblyProfileButton) {
+        event.preventDefault();
+        void this.onNewDisassemblyProfileClicked();
+        return;
+      }
+      const selectDisassemblyProfileButton = target.closest(
+        "[data-artisan-select-disassembly-profile]"
+      );
+      if (selectDisassemblyProfileButton) {
+        event.preventDefault();
+        this.onSelectDisassemblyProfileClicked(selectDisassemblyProfileButton);
+        return;
+      }
+      const deleteDisassemblyProfileButton = target.closest(
+        "[data-artisan-delete-disassembly-profile]"
+      );
+      if (deleteDisassemblyProfileButton) {
+        event.preventDefault();
+        void this.onDeleteDisassemblyProfileClicked(deleteDisassemblyProfileButton);
+        return;
+      }
+      const addDisassemblyComponentButton = target.closest(
+        "[data-artisan-disassembly-add-component]"
+      );
+      if (addDisassemblyComponentButton) {
+        event.preventDefault();
+        void this.onAddDisassemblyComponentClicked(addDisassemblyComponentButton);
+        return;
+      }
+      const removeDisassemblyComponentButton = target.closest(
+        "[data-artisan-disassembly-remove-component]"
+      );
+      if (removeDisassemblyComponentButton) {
+        event.preventDefault();
+        void this.onRemoveDisassemblyComponentClicked(removeDisassemblyComponentButton);
+        return;
+      }
+      const startDisassemblyButton = target.closest(
+        "[data-artisan-start-disassembly]"
+      );
+      if (startDisassemblyButton) {
+        event.preventDefault();
+        void this.onStartDisassemblyClicked(startDisassemblyButton);
+        return;
+      }
+      const exportDisassemblyButton = target.closest(
+        "[data-artisan-export-disassembly]"
+      );
+      if (exportDisassemblyButton) {
+        event.preventDefault();
+        this.onExportDisassemblyClicked();
+        return;
+      }
+      const importDisassemblyButton = target.closest(
+        "[data-artisan-import-disassembly]"
+      );
+      if (importDisassemblyButton) {
+        event.preventDefault();
+        this.onImportDisassemblyClicked();
+        return;
+      }
       const professionXpButton = target.closest(
         "[data-artisan-profession-xp-action]"
       );
@@ -5335,7 +6995,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         return;
       }
       const dropZone = target.closest(
-        "[data-artisan-drop-zone], [data-artisan-foraging-drop-zone], [data-artisan-harvest-drop-zone]"
+        "[data-artisan-drop-zone], [data-artisan-foraging-drop-zone], [data-artisan-harvest-drop-zone], [data-artisan-disassembly-drop-zone], [data-artisan-disassembly-source-drop-zone]"
       );
       if (!dropZone) {
         return;
@@ -5349,7 +7009,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         return;
       }
       const dropZone = target.closest(
-        "[data-artisan-drop-zone], [data-artisan-foraging-drop-zone], [data-artisan-harvest-drop-zone]"
+        "[data-artisan-drop-zone], [data-artisan-foraging-drop-zone], [data-artisan-harvest-drop-zone], [data-artisan-disassembly-drop-zone], [data-artisan-disassembly-source-drop-zone]"
       );
       if (!dropZone) {
         return;
@@ -5394,6 +7054,43 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         );
         return;
       }
+      const disassemblySourceDropZone = target.closest(
+        "[data-artisan-disassembly-source-drop-zone]"
+      );
+      if (disassemblySourceDropZone) {
+        event.preventDefault();
+        disassemblySourceDropZone.classList.remove("is-drag-over");
+        void this.onDisassemblySourceDropped(
+          event,
+          disassemblySourceDropZone
+        );
+        return;
+      }
+      const disassemblyDropZone = target.closest(
+        "[data-artisan-disassembly-drop-zone]"
+      );
+      if (disassemblyDropZone) {
+        event.preventDefault();
+        disassemblyDropZone.classList.remove("is-drag-over");
+        void this.onDisassemblyComponentDropped(
+          event,
+          disassemblyDropZone
+        );
+        return;
+      }
+    });
+  }
+  getActorProfessionInlineSummary(actor, profession, multiplierLabel) {
+    if (!actor || !profession) {
+      return game.i18n.localize("ARTISAN.SelectActorForProfessionRead");
+    }
+    return game.i18n.format("ARTISAN.ActorProfessionInlineSummary", {
+      actor: actor.name ?? game.i18n.localize("ARTISAN.Actor"),
+      level: profession.level ?? 0,
+      xp: profession.xp ?? 0,
+      next: profession.xpToNextLevel ?? 0,
+      multiplierLabel,
+      multiplier: profession.gatheringMultiplierLabel ?? "x1"
     });
   }
   getPresetPackages() {
@@ -5401,25 +7098,25 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       {
         id: "foraging-base",
         icon: "fa-solid fa-leaf",
-        title: "Foraging base",
-        subtitle: "Biomi pronti da riempire con risorse dei tuoi compendi.",
-        description: "Crea liste per Foresta, Montagna, Palude, Costa, Caverna e Deserto con CD, tempo, professione e massimo risorse gi\xE0 impostati.",
+        title: game.i18n.localize("ARTISAN.PresetForagingBaseTitle"),
+        subtitle: game.i18n.localize("ARTISAN.PresetForagingBaseSubtitle"),
+        description: game.i18n.localize("ARTISAN.PresetForagingBaseDescription"),
         entries: 6
       },
       {
         id: "harvest-base",
         icon: "fa-solid fa-paw",
-        title: "Harvest base",
-        subtitle: "Tabelle Harvest pronte per tipi creatura comuni.",
-        description: "Crea liste per Bestie, Draghi, Non morti, Mostruosit\xE0 e Vegetali. Le parti restano da collegare ai tuoi Item/compendi.",
+        title: game.i18n.localize("ARTISAN.PresetHarvestBaseTitle"),
+        subtitle: game.i18n.localize("ARTISAN.PresetHarvestBaseSubtitle"),
+        description: game.i18n.localize("ARTISAN.PresetHarvestBaseDescription"),
         entries: 5
       },
       {
         id: "recipe-templates",
         icon: "fa-solid fa-book-open",
-        title: "Template ricette",
-        subtitle: "Ricette vuote gi\xE0 divise per professione.",
-        description: "Crea modelli base per Alchimista, Fabbro, Cuoco, Erborista, Conciatore e Boscaiolo, pronti per ingredienti e output.",
+        title: game.i18n.localize("ARTISAN.PresetRecipeTemplatesTitle"),
+        subtitle: game.i18n.localize("ARTISAN.PresetRecipeTemplatesSubtitle"),
+        description: game.i18n.localize("ARTISAN.PresetRecipeTemplatesDescription"),
         entries: 6
       }
     ];
@@ -5432,11 +7129,11 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       imported += result.imported;
       skipped += result.skipped;
     }
-    ui.notifications.info(`Pacchetti Artisan installati. Creati: ${imported}, saltati: ${skipped}.`);
+    ui.notifications.info(`${game.i18n.localize("ARTISAN.PresetInstalledAllNotice")} ${game.i18n.localize("ARTISAN.Created")}: ${imported}, ${game.i18n.localize("ARTISAN.Skipped")}: ${skipped}.`);
     await this.addActivityLogEntry(
       "import",
-      "Pacchetti Artisan installati",
-      `Installazione completa pacchetti predefiniti. Creati ${imported}, saltati ${skipped}.`
+      game.i18n.localize("ARTISAN.PresetsInstalledTitle"),
+      `${game.i18n.localize("ARTISAN.PresetsInstalledMessage")} ${game.i18n.localize("ARTISAN.Created")}: ${imported}, ${game.i18n.localize("ARTISAN.Skipped")}: ${skipped}.`
     );
     this.render(true);
   }
@@ -5446,7 +7143,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       return;
     }
     const result = await this.installPresetPackage(presetId);
-    ui.notifications.info(`Pacchetto installato. Creati: ${result.imported}, saltati: ${result.skipped}.`);
+    ui.notifications.info(`${game.i18n.localize("ARTISAN.PresetInstalledNotice")} ${game.i18n.localize("ARTISAN.Created")}: ${result.imported}, ${game.i18n.localize("ARTISAN.Skipped")}: ${result.skipped}.`);
     this.render(true);
   }
   async installPresetPackage(presetId) {
@@ -5455,8 +7152,8 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       const result = await service.importProfiles({ profiles: this.getForagingPresetProfiles() });
       await this.addActivityLogEntry(
         "import",
-        "Pacchetto Foraging base",
-        `Liste Foraging create ${result.imported}, saltate ${result.skipped}.`
+        "Pacchetto Raccolta base",
+        `Liste di raccolta create ${result.imported}, saltate ${result.skipped}.`
       );
       return result;
     }
@@ -5465,8 +7162,8 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       const result = await service.importProfiles({ profiles: this.getHarvestPresetProfiles() });
       await this.addActivityLogEntry(
         "import",
-        "Pacchetto Harvest base",
-        `Liste Harvest create ${result.imported}, saltate ${result.skipped}.`
+        "Pacchetto Caccia base",
+        `Liste di caccia create ${result.imported}, saltate ${result.skipped}.`
       );
       return result;
     }
@@ -5484,21 +7181,21 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
   }
   getForagingPresetProfiles() {
     return [
-      { name: "Foraging \u2014 Foresta", biome: "foresta", profession: "erborista", skill: "nature", dc: 12, time: 60, maxResources: 3, resources: [], tools: [] },
-      { name: "Foraging \u2014 Montagna", biome: "montagna", profession: "minatore", skill: "athletics", dc: 14, time: 90, maxResources: 3, resources: [], tools: [] },
-      { name: "Foraging \u2014 Palude", biome: "palude", profession: "erborista", skill: "nature", dc: 15, time: 90, maxResources: 3, resources: [], tools: [] },
-      { name: "Foraging \u2014 Costa", biome: "costa", profession: "pescatore", skill: "survival", dc: 12, time: 60, maxResources: 3, resources: [], tools: [] },
-      { name: "Foraging \u2014 Caverna", biome: "caverna", profession: "minatore", skill: "perception", dc: 15, time: 120, maxResources: 2, resources: [], tools: [] },
-      { name: "Foraging \u2014 Deserto", biome: "deserto", profession: "cacciatore", skill: "survival", dc: 16, time: 120, maxResources: 2, resources: [], tools: [] }
+      { name: "Raccolta \u2014 Foresta", biome: "foresta", profession: "erborista", skill: "nature", dc: 12, time: 60, maxResources: 3, resources: [], tools: [] },
+      { name: "Raccolta \u2014 Montagna", biome: "montagna", profession: "minatore", skill: "athletics", dc: 14, time: 90, maxResources: 3, resources: [], tools: [] },
+      { name: "Raccolta \u2014 Palude", biome: "palude", profession: "erborista", skill: "nature", dc: 15, time: 90, maxResources: 3, resources: [], tools: [] },
+      { name: "Raccolta \u2014 Costa", biome: "costa", profession: "pescatore", skill: "survival", dc: 12, time: 60, maxResources: 3, resources: [], tools: [] },
+      { name: "Raccolta \u2014 Caverna", biome: "caverna", profession: "minatore", skill: "perception", dc: 15, time: 120, maxResources: 2, resources: [], tools: [] },
+      { name: "Raccolta \u2014 Deserto", biome: "deserto", profession: "cacciatore", skill: "survival", dc: 16, time: 120, maxResources: 2, resources: [], tools: [] }
     ];
   }
   getHarvestPresetProfiles() {
     return [
-      { name: "Harvest \u2014 Bestie", creatureType: "beast", profession: "cacciatore", skill: "survival", dc: 12, time: 30, maxResources: 3, toolRequirement: "optional", resources: [], tools: [] },
-      { name: "Harvest \u2014 Draghi", creatureType: "dragon", profession: "conciatore", skill: "survival", dc: 18, time: 120, maxResources: 3, toolRequirement: "required", resources: [], tools: [] },
-      { name: "Harvest \u2014 Non morti", creatureType: "undead", profession: "alchimista", skill: "arcana", dc: 15, time: 60, maxResources: 2, toolRequirement: "optional", resources: [], tools: [] },
-      { name: "Harvest \u2014 Mostruosit\xE0", creatureType: "monstrosity", profession: "cacciatore", skill: "survival", dc: 16, time: 90, maxResources: 3, toolRequirement: "optional", resources: [], tools: [] },
-      { name: "Harvest \u2014 Vegetali", creatureType: "plant", profession: "erborista", skill: "nature", dc: 13, time: 45, maxResources: 3, toolRequirement: "optional", resources: [], tools: [] }
+      { name: "Caccia \u2014 Bestie", creatureType: "beast", profession: "cacciatore", skill: "survival", dc: 12, time: 30, maxResources: 3, toolRequirement: "optional", toolCriticalDamage: false, resources: [], tools: [] },
+      { name: "Caccia \u2014 Draghi", creatureType: "dragon", profession: "conciatore", skill: "survival", dc: 18, time: 120, maxResources: 3, toolRequirement: "required", toolCriticalDamage: true, resources: [], tools: [] },
+      { name: "Caccia \u2014 Non morti", creatureType: "undead", profession: "alchimista", skill: "arcana", dc: 15, time: 60, maxResources: 2, toolRequirement: "optional", toolCriticalDamage: false, resources: [], tools: [] },
+      { name: "Caccia \u2014 Mostruosit\xE0", creatureType: "monstrosity", profession: "cacciatore", skill: "survival", dc: 16, time: 90, maxResources: 3, toolRequirement: "optional", toolCriticalDamage: false, resources: [], tools: [] },
+      { name: "Caccia \u2014 Vegetali", creatureType: "plant", profession: "erborista", skill: "nature", dc: 13, time: 45, maxResources: 3, toolRequirement: "optional", toolCriticalDamage: false, resources: [], tools: [] }
     ];
   }
   async createRecipeTemplatePresets() {
@@ -5536,12 +7233,12 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
   }
   getRecipePresetTemplates() {
     return [
-      { name: "Template \u2014 Pozione alchemica", category: "Alchimia", profession: "alchimista", professionLevel: 1, skill: "arcana", dc: 12, time: 60 },
-      { name: "Template \u2014 Arma semplice", category: "Forgiatura", profession: "fabbro", professionLevel: 1, skill: "athletics", dc: 12, time: 120 },
-      { name: "Template \u2014 Armatura rinforzata", category: "Forgiatura", profession: "fabbro", professionLevel: 2, skill: "athletics", dc: 15, time: 240 },
-      { name: "Template \u2014 Pasto da viaggio", category: "Cucina", profession: "cuoco", professionLevel: 0, skill: "survival", dc: 10, time: 30 },
-      { name: "Template \u2014 Preparato erboristico", category: "Erboristeria", profession: "erborista", professionLevel: 1, skill: "nature", dc: 12, time: 45 },
-      { name: "Template \u2014 Pelle lavorata", category: "Conciatura", profession: "conciatore", professionLevel: 1, skill: "survival", dc: 12, time: 90 }
+      { name: "Template \u2014 Pozione alchemica", category: "Alchimia", profession: "alchimista", professionLevel: 1, skill: "arcana", dc: 12, time: 60, craftingXp: 25, qualityBonusGood: 1, qualityBonusSuperior: 2, qualityBonusExcellent: 3, qualityDiceGood: "", qualityDiceSuperior: "1d4", qualityDiceExcellent: "1d6", qualityEffectGood: "healing", qualityEffectSuperior: "healing", qualityEffectExcellent: "healing" },
+      { name: "Template \u2014 Arma semplice", category: "Forgiatura", profession: "fabbro", professionLevel: 1, skill: "athletics", dc: 12, time: 120, craftingXp: 10 },
+      { name: "Template \u2014 Armatura rinforzata", category: "Forgiatura", profession: "fabbro", professionLevel: 2, skill: "athletics", dc: 15, time: 240, craftingXp: 20 },
+      { name: "Template \u2014 Pasto da viaggio", category: "Cucina", profession: "cuoco", professionLevel: 0, skill: "survival", dc: 10, time: 30, craftingXp: 3 },
+      { name: "Template \u2014 Preparato erboristico", category: "Erboristeria", profession: "erborista", professionLevel: 1, skill: "nature", dc: 12, time: 45, craftingXp: 8 },
+      { name: "Template \u2014 Pelle lavorata", category: "Conciatura", profession: "conciatore", professionLevel: 1, skill: "survival", dc: 12, time: 90, craftingXp: 8 }
     ];
   }
   getActorProfessionSummary(professions) {
@@ -5600,7 +7297,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     } else if (action === "next") {
       const targetXp = Number(current.xpForNextLevel ?? 0);
       if (targetXp <= 0) {
-        ui.notifications.info("Questa professione \xE8 gi\xE0 al livello massimo.");
+        ui.notifications.info(game.i18n.localize("ARTISAN.ProfessionAlreadyMaxLevel"));
         return;
       }
       nextXp = Math.max(nextXp, targetXp);
@@ -5616,6 +7313,10 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       enableProfessionXp: true,
       enableOutputQuality: true,
       enableToolDamage: true,
+      enableToolDamageCrafting: true,
+      enableToolDamageForaging: true,
+      enableToolDamageHarvest: true,
+      enableToolDamageDisassembly: true,
       enableHarvestRuinRisk: true,
       enableActivityLog: true
     };
@@ -5626,7 +7327,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       return;
     }
     game.settings.register("artisan", "moduleSettings", {
-      name: "Impostazioni Artisan",
+      name: "ARTISAN.ArtisanSettings",
       scope: "world",
       config: false,
       type: Object,
@@ -5647,31 +7348,49 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       {
         key: "enableProfessionXp",
         label: game.i18n.localize("ARTISAN.ProfessionXp"),
-        description: "Permette ad Artisan di assegnare XP professione durante Crafting, Foraging e Harvest.",
+        description: game.i18n.localize("ARTISAN.SettingProfessionXpDescription"),
         checked: settings.enableProfessionXp
       },
       {
         key: "enableOutputQuality",
         label: game.i18n.localize("ARTISAN.CraftingOutputQuality"),
-        description: "Permette di applicare qualit\xE0 agli oggetti creati in base al margine del tiro.",
+        description: game.i18n.localize("ARTISAN.SettingOutputQualityDescription"),
         checked: settings.enableOutputQuality
       },
       {
-        key: "enableToolDamage",
-        label: game.i18n.localize("ARTISAN.ToolDamageOnCriticalFailure"),
-        description: "Permette a Foraging e Harvest di danneggiare o distruggere strumenti su 1 naturale.",
-        checked: settings.enableToolDamage
+        key: "enableToolDamageCrafting",
+        label: game.i18n.localize("ARTISAN.ToolDamageCrafting"),
+        description: game.i18n.localize("ARTISAN.SettingToolDamageCraftingDescription"),
+        checked: settings.enableToolDamageCrafting
+      },
+      {
+        key: "enableToolDamageForaging",
+        label: game.i18n.localize("ARTISAN.ToolDamageForaging"),
+        description: game.i18n.localize("ARTISAN.SettingToolDamageForagingDescription"),
+        checked: settings.enableToolDamageForaging
+      },
+      {
+        key: "enableToolDamageHarvest",
+        label: game.i18n.localize("ARTISAN.ToolDamageHarvest"),
+        description: game.i18n.localize("ARTISAN.SettingToolDamageHarvestDescription"),
+        checked: settings.enableToolDamageHarvest
+      },
+      {
+        key: "enableToolDamageDisassembly",
+        label: game.i18n.localize("ARTISAN.ToolDamageDisassembly"),
+        description: game.i18n.localize("ARTISAN.SettingToolDamageDisassemblyDescription"),
+        checked: settings.enableToolDamageDisassembly
       },
       {
         key: "enableHarvestRuinRisk",
         label: game.i18n.localize("ARTISAN.HarvestRuinRisk"),
-        description: "Permette alle parti rare Harvest di rovinarsi in base alla rarit\xE0.",
+        description: game.i18n.localize("ARTISAN.SettingHarvestRuinRiskDescription"),
         checked: settings.enableHarvestRuinRisk
       },
       {
         key: "enableActivityLog",
         label: game.i18n.localize("ARTISAN.ActivityLog"),
-        description: "Registra le attivit\xE0 Artisan nella sezione Registro attivit\xE0.",
+        description: game.i18n.localize("ARTISAN.SettingActivityLogDescription"),
         checked: settings.enableActivityLog
       }
     ];
@@ -5687,12 +7406,12 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       ...current,
       [key]: value
     });
-    ui.notifications.info("Impostazione Artisan aggiornata.");
+    ui.notifications.info(game.i18n.localize("ARTISAN.SettingUpdated"));
     this.render(true);
   }
   async onResetArtisanSettingsClicked() {
     await game.settings.set("artisan", "moduleSettings", this.getDefaultArtisanSettings());
-    ui.notifications.info("Impostazioni Artisan ripristinate.");
+    ui.notifications.info(game.i18n.localize("ARTISAN.SettingsReset"));
     this.render(true);
   }
   getActivityLog() {
@@ -5860,7 +7579,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         recipeStatusClass: "is-locked",
         recipeStatusIcon: "fa-solid fa-lock",
         recipeStatusLabel: `${game.i18n.localize("ARTISAN.Requires")} ${professionLabel} ${requiredLevel}`,
-        recipeStatusTitle: `${actor.name}: ${professionLabel} livello ${actorLevel}. Richiesto livello ${requiredLevel}.`,
+        recipeStatusTitle: `${actor.name}: ${professionLabel} ${game.i18n.localize("ARTISAN.Level").toLowerCase()} ${actorLevel}. ${game.i18n.localize("ARTISAN.RequiredLevel")}: ${requiredLevel}.`,
         requiredProfessionLabel: professionLabel,
         requiredProfessionLevel: requiredLevel,
         actorProfessionLevel: actorLevel
@@ -5872,7 +7591,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       recipeStatusClass: "is-available",
       recipeStatusIcon: "fa-solid fa-circle-check",
       recipeStatusLabel: requiredLevel > 0 ? `${professionLabel} ${actorLevel}/${requiredLevel}` : game.i18n.localize("ARTISAN.Available"),
-      recipeStatusTitle: requiredLevel > 0 ? `${actor.name}: requisito soddisfatto (${professionLabel} livello ${actorLevel}/${requiredLevel}).` : `${actor.name}: ricetta senza requisito professione.`,
+      recipeStatusTitle: requiredLevel > 0 ? `${actor.name}: ${game.i18n.localize("ARTISAN.RequirementMet")} (${professionLabel} ${game.i18n.localize("ARTISAN.Level").toLowerCase()} ${actorLevel}/${requiredLevel}).` : `${actor.name}: ${game.i18n.localize("ARTISAN.RecipeWithoutProfessionRequirement")}.`,
       requiredProfessionLabel: professionLabel,
       requiredProfessionLevel: requiredLevel,
       actorProfessionLevel: actorLevel
@@ -5922,8 +7641,31 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       selected: String(level) === this.recipeFilterLevel
     }));
   }
+  getExplorerSectionView(section) {
+    const isSelected = section.id === this.selectedSectionId || section.id === "management" && ["professions", "activity", "settings"].includes(this.selectedSectionId);
+    const expanded = this.expandedExplorerSectionIds.has(section.id);
+    return {
+      ...section,
+      expanded,
+      collapsed: !expanded,
+      hasItems: section.items.length > 0,
+      selected: isSelected
+    };
+  }
   getRootElement() {
     return document.getElementById("artisan-manager") ?? document.querySelector(".artisan-manager");
+  }
+  onToggleExplorerSectionClicked(target) {
+    const sectionId = target.dataset.sectionId;
+    if (!sectionId) {
+      return;
+    }
+    if (this.expandedExplorerSectionIds.has(sectionId)) {
+      this.expandedExplorerSectionIds.delete(sectionId);
+    } else {
+      this.expandedExplorerSectionIds.add(sectionId);
+    }
+    this.render(true);
   }
   onSelectSectionClicked(target) {
     const sectionId = target.dataset.sectionId;
@@ -5931,6 +7673,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       return;
     }
     this.selectedSectionId = sectionId;
+    this.expandedExplorerSectionIds.add(sectionId);
     this.render(true);
   }
   onRecipeFilterChanged(target) {
@@ -6131,7 +7874,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     void this.addActivityLogEntry(
       "backup",
       "Backup Artisan esportato",
-      `Backup completo con ${recipes.length} ricette, ${foragingService.getProfiles().length} liste Foraging, ${harvestService.getProfiles().length} liste Harvest e ${actorProfessions.length} PG con professioni.`
+      `Backup completo con ${recipes.length} ricette, ${foragingService.getProfiles().length} liste di raccolta, ${harvestService.getProfiles().length} liste di caccia, ${disassemblyService.getProfiles().length} liste Dissassemblare e ${actorProfessions.length} PG con professioni.`
     );
   }
   onImportBackupClicked() {
@@ -6172,12 +7915,12 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         payload.actorProfessions ?? []
       );
       ui.notifications.info(
-        `Backup importato: ricette ${recipeResult.imported}/${recipeResult.skipped}, Foraging ${foragingResult.imported}/${foragingResult.skipped}, Harvest ${harvestResult.imported}/${harvestResult.skipped}, professioni PG ${actorResult.imported}/${actorResult.skipped}.`
+        `Backup importato: ricette ${recipeResult.imported}/${recipeResult.skipped}, Raccolta ${foragingResult.imported}/${foragingResult.skipped}, Caccia ${harvestResult.imported}/${harvestResult.skipped}, professioni PG ${actorResult.imported}/${actorResult.skipped}.`
       );
       void this.addActivityLogEntry(
         "backup",
         "Backup Artisan importato",
-        `Ricette importate ${recipeResult.imported}, Foraging ${foragingResult.imported}, Harvest ${harvestResult.imported}, professioni PG ${actorResult.imported}.`
+        `Ricette importate ${recipeResult.imported}, Raccolta ${foragingResult.imported}, Caccia ${harvestResult.imported}, professioni PG ${actorResult.imported}.`
       );
       this.render(true);
     } catch (error) {
@@ -6291,6 +8034,19 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       skill: String(recipe.skill ?? ""),
       dc: Number(recipe.dc ?? 10),
       craftingTime: Number(recipe.craftingTime ?? 0),
+      craftingXp: Math.max(0, Math.floor(Number(recipe.craftingXp ?? recipe.xp ?? 0))),
+      toolRequirement: String(recipe.toolRequirement ?? "optional") === "required" ? "required" : "optional",
+      toolCriticalDamage: Boolean(recipe.toolCriticalDamage ?? false),
+      qualityFormulaPath: String(recipe.qualityFormulaPath ?? ""),
+      qualityBonusGood: Math.max(0, Math.floor(Number(recipe.qualityBonusGood ?? 0))),
+      qualityBonusSuperior: Math.max(0, Math.floor(Number(recipe.qualityBonusSuperior ?? 0))),
+      qualityBonusExcellent: Math.max(0, Math.floor(Number(recipe.qualityBonusExcellent ?? 0))),
+      qualityDiceGood: String(recipe.qualityDiceGood ?? ""),
+      qualityDiceSuperior: String(recipe.qualityDiceSuperior ?? ""),
+      qualityDiceExcellent: String(recipe.qualityDiceExcellent ?? ""),
+      qualityEffectGood: String(recipe.qualityEffectGood ?? "auto"),
+      qualityEffectSuperior: String(recipe.qualityEffectSuperior ?? "auto"),
+      qualityEffectExcellent: String(recipe.qualityEffectExcellent ?? "auto"),
       ingredients: this.normalizeRecipeImportComponents(recipe.ingredients),
       tools: this.normalizeRecipeImportComponents(recipe.tools),
       outputs: this.normalizeRecipeImportComponents(recipe.outputs)
@@ -6456,6 +8212,19 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
             skill: String(data.skill ?? ""),
             dc: Number(data.dc ?? 10),
             craftingTime: Number(data.craftingTime ?? 0),
+            craftingXp: Math.max(0, Math.floor(Number(data.craftingXp ?? 0))),
+            toolRequirement: String(data.toolRequirement ?? "optional") === "required" ? "required" : "optional",
+            toolCriticalDamage: Boolean(data.toolCriticalDamage ?? false),
+            qualityFormulaPath: String(data.qualityFormulaPath ?? ""),
+            qualityBonusGood: Math.max(0, Math.floor(Number(data.qualityBonusGood ?? 0))),
+            qualityBonusSuperior: Math.max(0, Math.floor(Number(data.qualityBonusSuperior ?? 0))),
+            qualityBonusExcellent: Math.max(0, Math.floor(Number(data.qualityBonusExcellent ?? 0))),
+            qualityDiceGood: String(data.qualityDiceGood ?? ""),
+            qualityDiceSuperior: String(data.qualityDiceSuperior ?? ""),
+            qualityDiceExcellent: String(data.qualityDiceExcellent ?? ""),
+            qualityEffectGood: String(data.qualityEffectGood ?? "auto"),
+            qualityEffectSuperior: String(data.qualityEffectSuperior ?? "auto"),
+            qualityEffectExcellent: String(data.qualityEffectExcellent ?? "auto"),
             ingredients: this.normalizeRecipeExportComponents(data.ingredients),
             tools: this.normalizeRecipeExportComponents(data.tools),
             outputs: this.normalizeRecipeExportComponents(data.outputs)
@@ -6519,6 +8288,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     this.selectedRecipeId = recipeId;
     this.selectedSectionId = "recipes";
+    this.expandedExplorerSectionIds.add("recipes");
     this.render(true);
   }
   async onAddComponentClicked(target) {
@@ -6660,18 +8430,19 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const profile = await service.createProfile();
     this.selectedForagingProfileId = profile.id;
     this.selectedSectionId = "foraging";
+    this.expandedExplorerSectionIds.add("foraging");
     this.render(true);
   }
   async onDeleteForagingProfileClicked(target) {
     const profileId = target.dataset.profileId ?? this.selectedForagingProfileId;
     if (!profileId) {
-      ui.notifications.warn("Nessuna lista Foraging selezionata.");
+      ui.notifications.warn("Nessuna lista di raccolta selezionata.");
       return;
     }
     const service = new ForagingService();
     const profile = service.getProfile(profileId);
     if (!profile) {
-      ui.notifications.warn("Lista Foraging non trovata.");
+      ui.notifications.warn("Lista di raccolta non trovata.");
       return;
     }
     const confirmed = await this.confirmDeleteForagingProfile(profile.name);
@@ -6687,9 +8458,9 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
   async confirmDeleteForagingProfile(profileName) {
     return new Promise((resolve) => {
       new Dialog({
-        title: "Cancella lista Foraging",
+        title: "Cancella lista di raccolta",
         content: `
-                    <p>Vuoi cancellare definitivamente questa lista Foraging?</p>
+                    <p>Vuoi cancellare definitivamente questa lista di raccolta?</p>
                     <p><strong>${profileName}</strong></p>
                     <p><em>L'operazione non pu\xF2 essere annullata.</em></p>
                 `,
@@ -6725,7 +8496,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     const profile = new ForagingService().getProfile(profileId);
     if (!profile) {
-      ui.notifications.warn("Lista Foraging non trovata.");
+      ui.notifications.warn("Lista di raccolta non trovata.");
       return;
     }
     const actor = canvas?.tokens?.controlled?.[0]?.actor ?? null;
@@ -6781,7 +8552,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const index = Number(target.dataset.index);
     const field = target.dataset.artisanForagingComponentField;
     if (!profileId || !collection || Number.isNaN(index) || !field) {
-      ui.notifications.warn("Elemento Foraging non valido.");
+      ui.notifications.warn("Elemento Raccolta non valido.");
       return;
     }
     const service = new ForagingService();
@@ -6794,12 +8565,12 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const profileId = target.dataset.profileId ?? this.selectedForagingProfileId;
     const collection = target.dataset.collection;
     if (!profileId || !collection) {
-      ui.notifications.warn("Lista Foraging o sezione non valida.");
+      ui.notifications.warn("Lista Raccolta o sezione non valida.");
       return;
     }
     const panel = target.closest(".artisan-foraging-panel");
     if (!panel) {
-      ui.notifications.warn("Pannello Foraging non trovato.");
+      ui.notifications.warn("Pannello Raccolta non trovato.");
       return;
     }
     const uuidInput = panel.querySelector(
@@ -6859,7 +8630,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const profileId = dropZone.dataset.profileId ?? this.selectedForagingProfileId;
     const collection = dropZone.dataset.collection;
     if (!profileId || !collection) {
-      ui.notifications.warn("Lista Foraging o sezione non valida.");
+      ui.notifications.warn("Lista Raccolta o sezione non valida.");
       return;
     }
     const uuid = this.getUuidFromDragEvent(event);
@@ -6917,7 +8688,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const collection = target.dataset.collection;
     const index = Number(target.dataset.index);
     if (!profileId || !collection || Number.isNaN(index)) {
-      ui.notifications.warn("Elemento Foraging non valido.");
+      ui.notifications.warn("Elemento Raccolta non valido.");
       return;
     }
     const service = new ForagingService();
@@ -6927,7 +8698,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
   async onStartForagingClicked(target) {
     const profileId = target.dataset.profileId ?? this.selectedForagingProfileId;
     if (!profileId) {
-      ui.notifications.warn("Nessuna lista Foraging selezionata.");
+      ui.notifications.warn("Nessuna lista di raccolta selezionata.");
       return;
     }
     const service = new ForagingService();
@@ -6936,7 +8707,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     await service.startForaging(profileId);
     void this.addActivityLogEntry(
       "foraging",
-      "Foraging eseguito",
+      "Raccolta eseguita",
       `Eseguita raccolta${profile ? `: ${profile.name}` : ""}.`,
       actor?.name ?? ""
     );
@@ -6946,8 +8717,8 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     service.exportProfiles();
     void this.addActivityLogEntry(
       "export",
-      "Liste Foraging esportate",
-      `Esportate ${service.getProfiles().length} liste Foraging.`
+      "Liste Raccolta esportate",
+      `Esportate ${service.getProfiles().length} liste di raccolta.`
     );
   }
   onImportForagingClicked() {
@@ -6956,7 +8727,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       "[data-artisan-import-foraging-file]"
     );
     if (!input) {
-      ui.notifications.warn("Campo import Foraging non trovato.");
+      ui.notifications.warn("Campo import Raccolta non trovato.");
       return;
     }
     input.value = "";
@@ -6973,15 +8744,15 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       const service = new ForagingService();
       const result = await service.importProfiles(payload);
       if (result.imported <= 0 && result.skipped <= 0) {
-        ui.notifications.warn("Il file non contiene liste Foraging importabili.");
+        ui.notifications.warn("Il file non contiene liste di raccolta importabili.");
         return;
       }
       ui.notifications.info(
-        `Import Foraging completato: ${result.imported} liste importate, ${result.skipped} saltate.`
+        `Import Raccolta completato: ${result.imported} liste importate, ${result.skipped} saltate.`
       );
       void this.addActivityLogEntry(
         "import",
-        "Liste Foraging importate",
+        "Liste Raccolta importate",
         `${result.imported} liste importate, ${result.skipped} saltate.`
       );
       const profiles = service.getProfiles();
@@ -6989,8 +8760,8 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       this.selectedSectionId = "foraging";
       this.render(true);
     } catch (error) {
-      console.error("Artisan | Import Foraging fallito", error);
-      ui.notifications.error("Import Foraging fallito. Controlla che il JSON sia valido.");
+      console.error("Artisan | Import Raccolta fallito", error);
+      ui.notifications.error("Import Raccolta fallito. Controlla che il JSON sia valido.");
     } finally {
       target.value = "";
     }
@@ -7000,18 +8771,19 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const profile = await service.createProfile();
     this.selectedHarvestProfileId = profile.id;
     this.selectedSectionId = "harvest";
+    this.expandedExplorerSectionIds.add("harvest");
     this.render(true);
   }
   async onDeleteHarvestProfileClicked(target) {
     const profileId = target.dataset.profileId ?? this.selectedHarvestProfileId;
     if (!profileId) {
-      ui.notifications.warn("Nessuna lista Harvest selezionata.");
+      ui.notifications.warn("Nessuna lista di caccia selezionata.");
       return;
     }
     const service = new HarvestService();
     const profile = service.getProfile(profileId);
     if (!profile) {
-      ui.notifications.warn("Lista Harvest non trovata.");
+      ui.notifications.warn("Lista di caccia non trovata.");
       return;
     }
     const confirmed = await this.confirmDeleteHarvestProfile(profile.name);
@@ -7027,9 +8799,9 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
   async confirmDeleteHarvestProfile(profileName) {
     return new Promise((resolve) => {
       new Dialog({
-        title: "Cancella lista Harvest",
+        title: "Cancella lista di caccia",
         content: `
-                    <p>Vuoi cancellare definitivamente questa lista Harvest?</p>
+                    <p>Vuoi cancellare definitivamente questa lista di caccia?</p>
                     <p><strong>${profileName}</strong></p>
                     <p><em>L'operazione non pu\xF2 essere annullata.</em></p>
                 `,
@@ -7087,7 +8859,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const index = Number(target.dataset.index);
     const field = target.dataset.artisanHarvestComponentField;
     if (!profileId || !collection || Number.isNaN(index) || !field) {
-      ui.notifications.warn("Elemento Harvest non valido.");
+      ui.notifications.warn("Elemento Caccia non valido.");
       return;
     }
     const service = new HarvestService();
@@ -7100,12 +8872,12 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const profileId = target.dataset.profileId ?? this.selectedHarvestProfileId;
     const collection = target.dataset.collection;
     if (!profileId || !collection) {
-      ui.notifications.warn("Lista Harvest o sezione non valida.");
+      ui.notifications.warn("Lista Caccia o sezione non valida.");
       return;
     }
     const panel = target.closest(".artisan-harvest-panel");
     if (!panel) {
-      ui.notifications.warn("Pannello Harvest non trovato.");
+      ui.notifications.warn("Pannello Caccia non trovato.");
       return;
     }
     const uuidInput = panel.querySelector(
@@ -7181,7 +8953,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const profileId = dropZone.dataset.profileId ?? this.selectedHarvestProfileId;
     const collection = dropZone.dataset.collection;
     if (!profileId || !collection) {
-      ui.notifications.warn("Lista Harvest o sezione non valida.");
+      ui.notifications.warn("Lista Caccia o sezione non valida.");
       return;
     }
     const uuid = this.getUuidFromDragEvent(event);
@@ -7255,7 +9027,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const collection = target.dataset.collection;
     const index = Number(target.dataset.index);
     if (!profileId || !collection || Number.isNaN(index)) {
-      ui.notifications.warn("Elemento Harvest non valido.");
+      ui.notifications.warn("Elemento Caccia non valido.");
       return;
     }
     const service = new HarvestService();
@@ -7265,7 +9037,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
   async onStartHarvestClicked(target) {
     const profileId = target.dataset.profileId ?? this.selectedHarvestProfileId;
     if (!profileId) {
-      ui.notifications.warn("Nessuna lista Harvest selezionata.");
+      ui.notifications.warn("Nessuna lista di caccia selezionata.");
       return;
     }
     const service = new HarvestService();
@@ -7274,8 +9046,8 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     await service.startHarvest(profileId);
     void this.addActivityLogEntry(
       "harvest",
-      "Harvest eseguito",
-      `Eseguito Harvest${profile ? `: ${profile.name}` : ""}.`,
+      "Caccia eseguita",
+      `Eseguita Caccia${profile ? `: ${profile.name}` : ""}.`,
       actor?.name ?? ""
     );
   }
@@ -7284,8 +9056,8 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     service.exportProfiles();
     void this.addActivityLogEntry(
       "export",
-      "Liste Harvest esportate",
-      `Esportate ${service.getProfiles().length} liste Harvest.`
+      "Liste Caccia esportate",
+      `Esportate ${service.getProfiles().length} liste di caccia.`
     );
   }
   onImportHarvestClicked() {
@@ -7294,7 +9066,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       "[data-artisan-import-harvest-file]"
     );
     if (!input) {
-      ui.notifications.warn("Campo import Harvest non trovato.");
+      ui.notifications.warn("Campo import Caccia non trovato.");
       return;
     }
     input.value = "";
@@ -7311,15 +9083,15 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       const service = new HarvestService();
       const result = await service.importProfiles(payload);
       if (result.imported <= 0 && result.skipped <= 0) {
-        ui.notifications.warn("Il file non contiene liste Harvest importabili.");
+        ui.notifications.warn("Il file non contiene liste di caccia importabili.");
         return;
       }
       ui.notifications.info(
-        `Import Harvest completato: ${result.imported} liste importate, ${result.skipped} saltate.`
+        `Import Caccia completato: ${result.imported} liste importate, ${result.skipped} saltate.`
       );
       void this.addActivityLogEntry(
         "import",
-        "Liste Harvest importate",
+        "Liste Caccia importate",
         `${result.imported} liste importate, ${result.skipped} saltate.`
       );
       const profiles = service.getProfiles();
@@ -7327,8 +9099,262 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       this.selectedSectionId = "harvest";
       this.render(true);
     } catch (error) {
-      console.error("Artisan | Import Harvest fallito", error);
-      ui.notifications.error("Import Harvest fallito. Controlla che il JSON sia valido.");
+      console.error("Artisan | Import Caccia fallito", error);
+      ui.notifications.error("Import Caccia fallito. Controlla che il JSON sia valido.");
+    } finally {
+      target.value = "";
+    }
+  }
+  async onNewDisassemblyProfileClicked() {
+    const service = new DisassemblyService();
+    const profile = await service.createProfile();
+    this.selectedDisassemblyProfileId = profile.id;
+    this.selectedSectionId = "disassembly";
+    this.expandedExplorerSectionIds.add("disassembly");
+    this.render(true);
+  }
+  async onDeleteDisassemblyProfileClicked(target) {
+    const profileId = target.dataset.profileId ?? this.selectedDisassemblyProfileId;
+    if (!profileId) {
+      ui.notifications.warn("Nessuna lista Dissassemblare selezionata.");
+      return;
+    }
+    const service = new DisassemblyService();
+    const profile = service.getProfile(profileId);
+    if (!profile) {
+      ui.notifications.warn("Lista Dissassemblare non trovata.");
+      return;
+    }
+    const confirmed = await this.confirmDeleteDisassemblyProfile(profile.name);
+    if (!confirmed) {
+      return;
+    }
+    await service.deleteProfile(profileId);
+    const profiles = service.getProfiles();
+    this.selectedDisassemblyProfileId = profiles[0]?.id ?? null;
+    this.selectedSectionId = "disassembly";
+    this.render(true);
+  }
+  async confirmDeleteDisassemblyProfile(profileName) {
+    return new Promise((resolve) => {
+      new Dialog({
+        title: "Cancella lista Dissassemblare",
+        content: `
+          <p>Vuoi cancellare definitivamente questa lista Dissassemblare?</p>
+          <p><strong>${profileName}</strong></p>
+          <p><em>L'operazione non pu\xF2 essere annullata.</em></p>
+        `,
+        buttons: {
+          cancel: {
+            label: game.i18n.localize("ARTISAN.Cancel"),
+            callback: () => resolve(false)
+          },
+          delete: {
+            label: game.i18n.localize("ARTISAN.Delete"),
+            callback: () => resolve(true)
+          }
+        },
+        default: "cancel",
+        close: () => resolve(false)
+      }).render(true);
+    });
+  }
+  onSelectDisassemblyProfileClicked(target) {
+    const profileId = target.dataset.profileId;
+    if (!profileId) {
+      return;
+    }
+    this.selectedDisassemblyProfileId = profileId;
+    this.selectedSectionId = "disassembly";
+    this.render(true);
+  }
+  async onDisassemblyFieldChanged(target) {
+    const profileId = target.dataset.profileId ?? this.selectedDisassemblyProfileId;
+    const field = target.dataset.artisanDisassemblyField;
+    if (!profileId || !field) {
+      return;
+    }
+    const service = new DisassemblyService();
+    const value = this.parseFieldValue(target);
+    if (field === "profession") {
+      const defaultSkill = new ProfessionService().getDefaultSkill(String(value));
+      await service.updateProfile(profileId, {
+        profession: String(value),
+        ...defaultSkill ? { skill: defaultSkill } : {}
+      });
+      this.render(true);
+      return;
+    }
+    await service.updateProfile(profileId, { [field]: value });
+    this.render(true);
+  }
+  async onDisassemblyComponentFieldChanged(target) {
+    const profileId = target.dataset.profileId ?? this.selectedDisassemblyProfileId;
+    const collection = target.dataset.collection;
+    const index = Number(target.dataset.index);
+    const field = target.dataset.artisanDisassemblyComponentField;
+    if (!profileId || !collection || Number.isNaN(index) || !field) {
+      ui.notifications.warn("Elemento Dissassemblare non valido.");
+      return;
+    }
+    const service = new DisassemblyService();
+    await service.updateComponent(profileId, collection, index, { [field]: this.parseFieldValue(target) });
+    this.render(true);
+  }
+  async onAddDisassemblyComponentClicked(target) {
+    const profileId = target.dataset.profileId ?? this.selectedDisassemblyProfileId;
+    const collection = target.dataset.collection;
+    if (!profileId || !collection) {
+      ui.notifications.warn("Lista Dissassemblare o sezione non valida.");
+      return;
+    }
+    const panel = target.closest(".artisan-disassembly-panel");
+    if (!panel) {
+      ui.notifications.warn("Pannello Dissassemblare non trovato.");
+      return;
+    }
+    const uuidInput = panel.querySelector("[data-artisan-disassembly-component-uuid]");
+    const quantityInput = panel.querySelector("[data-artisan-disassembly-component-quantity]");
+    const weightInput = panel.querySelector("[data-artisan-disassembly-component-weight]");
+    const minQuantityInput = panel.querySelector("[data-artisan-disassembly-component-min-quantity]");
+    const maxQuantityInput = panel.querySelector("[data-artisan-disassembly-component-max-quantity]");
+    const uuid = uuidInput?.value.trim() ?? "";
+    const quantity = Math.max(1, Number(quantityInput?.value || 1));
+    const weight = weightInput?.value ? Math.max(0.1, Number(weightInput.value)) : void 0;
+    const minQuantity = Math.max(1, Number(minQuantityInput?.value || quantity));
+    const maxQuantity = Math.max(minQuantity, Number(maxQuantityInput?.value || minQuantity));
+    if (!uuid) {
+      ui.notifications.warn("Inserisci un UUID.");
+      return;
+    }
+    const service = new DisassemblyService();
+    await service.addComponent(profileId, collection, uuid, quantity, { weight, minQuantity, maxQuantity });
+    if (uuidInput) uuidInput.value = "";
+    if (quantityInput) quantityInput.value = "1";
+    if (weightInput) weightInput.value = "";
+    if (minQuantityInput) minQuantityInput.value = "1";
+    if (maxQuantityInput) maxQuantityInput.value = "1";
+    this.render(true);
+  }
+  async onDisassemblySourceDropped(event, dropZone) {
+    const profileId = dropZone.dataset.profileId ?? this.selectedDisassemblyProfileId;
+    if (!profileId) {
+      ui.notifications.warn("Lista Dissassemblare non valida.");
+      return;
+    }
+    const uuid = this.getUuidFromDragEvent(event);
+    if (!uuid) {
+      ui.notifications.warn("Non riesco a leggere l'UUID della risorsa sorgente trascinata.");
+      return;
+    }
+    const service = new DisassemblyService();
+    await service.updateProfile(profileId, { sourceUuid: uuid });
+    this.render(true);
+  }
+  async onDisassemblyComponentDropped(event, dropZone) {
+    const profileId = dropZone.dataset.profileId ?? this.selectedDisassemblyProfileId;
+    const collection = dropZone.dataset.collection;
+    if (!profileId || !collection) {
+      ui.notifications.warn("Lista Dissassemblare o sezione non valida.");
+      return;
+    }
+    const uuid = this.getUuidFromDragEvent(event);
+    if (!uuid) {
+      ui.notifications.warn("Non riesco a leggere l'UUID dell'elemento trascinato.");
+      return;
+    }
+    const panel = dropZone.closest(".artisan-disassembly-panel");
+    const quantityInput = panel?.querySelector("[data-artisan-disassembly-component-quantity]");
+    const weightInput = panel?.querySelector("[data-artisan-disassembly-component-weight]");
+    const minQuantityInput = panel?.querySelector("[data-artisan-disassembly-component-min-quantity]");
+    const maxQuantityInput = panel?.querySelector("[data-artisan-disassembly-component-max-quantity]");
+    const quantity = Math.max(1, Number(quantityInput?.value || 1));
+    const weight = weightInput?.value ? Math.max(0.1, Number(weightInput.value)) : void 0;
+    const minQuantity = Math.max(1, Number(minQuantityInput?.value || quantity));
+    const maxQuantity = Math.max(minQuantity, Number(maxQuantityInput?.value || minQuantity));
+    const service = new DisassemblyService();
+    await service.addComponent(profileId, collection, uuid, quantity, { weight, minQuantity, maxQuantity });
+    if (quantityInput) quantityInput.value = "1";
+    if (weightInput) weightInput.value = "";
+    if (minQuantityInput) minQuantityInput.value = "1";
+    if (maxQuantityInput) maxQuantityInput.value = "1";
+    this.render(true);
+  }
+  async onRemoveDisassemblyComponentClicked(target) {
+    const profileId = target.dataset.profileId;
+    const collection = target.dataset.collection;
+    const index = Number(target.dataset.index);
+    if (!profileId || !collection || Number.isNaN(index)) {
+      ui.notifications.warn("Elemento Dissassemblare non valido.");
+      return;
+    }
+    const service = new DisassemblyService();
+    await service.removeComponent(profileId, collection, index);
+    this.render(true);
+  }
+  async onStartDisassemblyClicked(target) {
+    const profileId = target.dataset.profileId ?? this.selectedDisassemblyProfileId;
+    if (!profileId) {
+      ui.notifications.warn("Nessuna lista Dissassemblare selezionata.");
+      return;
+    }
+    const service = new DisassemblyService();
+    const profile = service.getProfile(profileId);
+    const actor = canvas?.tokens?.controlled?.[0]?.actor ?? null;
+    await service.startDisassembly(profileId);
+    void this.addActivityLogEntry(
+      "disassembly",
+      "Dissassemblare eseguito",
+      `Eseguito Dissassemblare${profile ? `: ${profile.name}` : ""}.`,
+      actor?.name ?? ""
+    );
+  }
+  onExportDisassemblyClicked() {
+    const service = new DisassemblyService();
+    service.exportProfiles();
+    void this.addActivityLogEntry(
+      "export",
+      "Liste Dissassemblare esportate",
+      `Esportate ${service.getProfiles().length} liste Dissassemblare.`
+    );
+  }
+  onImportDisassemblyClicked() {
+    const element = this.getRootElement();
+    const input = element?.querySelector("[data-artisan-import-disassembly-file]");
+    if (!input) {
+      ui.notifications.warn("Campo import Dissassemblare non trovato.");
+      return;
+    }
+    input.value = "";
+    input.click();
+  }
+  async onImportDisassemblyFileChanged(target) {
+    const file = target.files?.[0];
+    if (!file) {
+      return;
+    }
+    try {
+      const text = await this.readTextFile(file);
+      const payload = JSON.parse(text);
+      const service = new DisassemblyService();
+      const result = await service.importProfiles(payload);
+      if (result.imported <= 0 && result.skipped <= 0) {
+        ui.notifications.warn("Il file non contiene liste Dissassemblare importabili.");
+        return;
+      }
+      ui.notifications.info(`Import Dissassemblare completato: ${result.imported} liste importate, ${result.skipped} saltate.`);
+      void this.addActivityLogEntry(
+        "import",
+        "Liste Dissassemblare importate",
+        `${result.imported} liste importate, ${result.skipped} saltate.`
+      );
+      const profiles = service.getProfiles();
+      this.selectedDisassemblyProfileId = profiles[profiles.length - 1]?.id ?? this.selectedDisassemblyProfileId;
+      this.selectedSectionId = "disassembly";
+      this.render(true);
+    } catch (error) {
+      console.error("Artisan | Import Dissassemblare fallito", error);
+      ui.notifications.error("Import Dissassemblare fallito. Controlla che il JSON sia valido.");
     } finally {
       target.value = "";
     }
@@ -7365,6 +9391,7 @@ var Artisan = class _Artisan {
   static initialize() {
     console.log("Artisan | Module initialization");
     this.registerLanguageSetting();
+    this.registerArtisanModuleSettings();
     this.registerUtilityMenus();
     this.patchLocalization();
     this.exposeApi();
@@ -7431,8 +9458,25 @@ var Artisan = class _Artisan {
     const list = (keys) => {
       return keys.map((key) => `<li>${l(key)}</li>`).join("");
     };
+    const card = (icon, titleKey, textKey, bulletKeys) => {
+      return `
+                <article class="artisan-help-dialog__card">
+                    <h3><i class="${icon}"></i> ${l(titleKey)}</h3>
+                    <p>${l(textKey)}</p>
+                    <ul>${list(bulletKeys)}</ul>
+                </article>
+            `;
+    };
+    const mini = (titleKey, textKey) => {
+      return `
+                <article class="artisan-help-dialog__mini-card">
+                    <strong>${l(titleKey)}</strong>
+                    <span>${l(textKey)}</span>
+                </article>
+            `;
+    };
     return `
-            <article class="artisan-help-dialog">
+            <article class="artisan-help-dialog artisan-help-dialog--full">
                 <header class="artisan-help-dialog__hero">
                     <div class="artisan-help-dialog__icon"><i class="fa-solid fa-hammer"></i></div>
                     <div>
@@ -7441,61 +9485,145 @@ var Artisan = class _Artisan {
                     </div>
                 </header>
 
-                <section class="artisan-help-dialog__section">
+                <nav class="artisan-help-dialog__toc" aria-label="Artisan help navigation">
+                    <a href="#artisan-help-start">${l("ARTISAN.HelpDialogStartTitle")}</a>
+                    <a href="#artisan-help-crafting">${l("ARTISAN.HelpCraftingTitle")}</a>
+                    <a href="#artisan-help-foraging">${l("ARTISAN.HelpForagingTitle")}</a>
+                    <a href="#artisan-help-harvest">${l("ARTISAN.HelpHarvestTitle")}</a>
+                    <a href="#artisan-help-professions">${l("ARTISAN.HelpProfessionsTitle")}</a>
+                    <a href="#artisan-help-data">${l("ARTISAN.HelpDialogDataTitle")}</a>
+                </nav>
+
+                <section id="artisan-help-start" class="artisan-help-dialog__section">
                     <h3><i class="fa-solid fa-play"></i> ${l("ARTISAN.HelpDialogStartTitle")}</h3>
-                    <ol>${list([
+                    <ol class="artisan-help-dialog__steps">${list([
       "ARTISAN.HelpDialogStart1",
       "ARTISAN.HelpDialogStart2",
       "ARTISAN.HelpDialogStart3",
-      "ARTISAN.HelpDialogStart4"
+      "ARTISAN.HelpDialogStart4",
+      "ARTISAN.HelpDialogStart5",
+      "ARTISAN.HelpDialogStart6"
     ])}</ol>
                 </section>
 
-                <section class="artisan-help-dialog__grid">
-                    <article>
-                        <h3><i class="fa-solid fa-book"></i> ${l("ARTISAN.HelpCraftingTitle")}</h3>
-                        <p>${l("ARTISAN.HelpDialogCraftingText")}</p>
-                        <ul>${list([
-      "ARTISAN.HelpDialogCrafting1",
-      "ARTISAN.HelpDialogCrafting2",
-      "ARTISAN.HelpDialogCrafting3"
-    ])}</ul>
-                    </article>
-
-                    <article>
-                        <h3><i class="fa-solid fa-leaf"></i> ${l("ARTISAN.HelpForagingTitle")}</h3>
-                        <p>${l("ARTISAN.HelpDialogForagingText")}</p>
-                        <ul>${list([
-      "ARTISAN.HelpDialogForaging1",
-      "ARTISAN.HelpDialogForaging2",
-      "ARTISAN.HelpDialogForaging3"
-    ])}</ul>
-                    </article>
-
-                    <article>
-                        <h3><i class="fa-solid fa-paw"></i> ${l("ARTISAN.HelpHarvestTitle")}</h3>
-                        <p>${l("ARTISAN.HelpDialogHarvestText")}</p>
-                        <ul>${list([
-      "ARTISAN.HelpDialogHarvest1",
-      "ARTISAN.HelpDialogHarvest2",
-      "ARTISAN.HelpDialogHarvest3"
-    ])}</ul>
-                    </article>
-
-                    <article>
-                        <h3><i class="fa-solid fa-user-gear"></i> ${l("ARTISAN.HelpProfessionsTitle")}</h3>
-                        <p>${l("ARTISAN.HelpDialogProfessionsText")}</p>
-                        <ul>${list([
-      "ARTISAN.HelpDialogProfessions1",
-      "ARTISAN.HelpDialogProfessions2",
-      "ARTISAN.HelpDialogProfessions3"
-    ])}</ul>
-                    </article>
+                <section class="artisan-help-dialog__mini-grid">
+                    ${mini("ARTISAN.HelpMiniActorTitle", "ARTISAN.HelpMiniActorText")}
+                    ${mini("ARTISAN.HelpMiniItemsTitle", "ARTISAN.HelpMiniItemsText")}
+                    ${mini("ARTISAN.HelpMiniToolsTitle", "ARTISAN.HelpMiniToolsText")}
+                    ${mini("ARTISAN.HelpMiniBackupTitle", "ARTISAN.HelpMiniBackupText")}
                 </section>
 
-                <section class="artisan-help-dialog__section artisan-help-dialog__note">
+                <section id="artisan-help-crafting" class="artisan-help-dialog__section">
+                    <h3><i class="fa-solid fa-book"></i> ${l("ARTISAN.HelpCraftingTitle")}</h3>
+                    <p>${l("ARTISAN.HelpDialogCraftingText")}</p>
+                    <div class="artisan-help-dialog__split">
+                        <article>
+                            <h4>${l("ARTISAN.HelpRecipeSetupTitle")}</h4>
+                            <ul>${list([
+      "ARTISAN.HelpDialogCrafting1",
+      "ARTISAN.HelpDialogCrafting2",
+      "ARTISAN.HelpDialogCrafting3",
+      "ARTISAN.HelpCraftingToolsBonus",
+      "ARTISAN.HelpCraftingXp"
+    ])}</ul>
+                        </article>
+                        <article>
+                            <h4>${l("ARTISAN.HelpOutputQualityTitle")}</h4>
+                            <table class="artisan-help-dialog__table">
+                                <tbody>
+                                    <tr><th>${l("ARTISAN.HelpRollResult")}</th><th>${l("ARTISAN.HelpEffect")}</th></tr>
+                                    <tr><td>${l("ARTISAN.HelpQualityNormalRange")}</td><td>${l("ARTISAN.HelpQualityNormal")}</td></tr>
+                                    <tr><td>${l("ARTISAN.HelpQualityGoodRange")}</td><td>${l("ARTISAN.HelpQualityGood")}</td></tr>
+                                    <tr><td>${l("ARTISAN.HelpQualitySuperiorRange")}</td><td>${l("ARTISAN.HelpQualitySuperior")}</td></tr>
+                                    <tr><td>${l("ARTISAN.HelpQualityExcellentRange")}</td><td>${l("ARTISAN.HelpQualityExcellent")}</td></tr>
+                                </tbody>
+                            </table>
+                        </article>
+                    </div>
+                </section>
+
+                <section id="artisan-help-foraging" class="artisan-help-dialog__section">
+                    <h3><i class="fa-solid fa-leaf"></i> ${l("ARTISAN.HelpForagingTitle")}</h3>
+                    <p>${l("ARTISAN.HelpDialogForagingText")}</p>
+                    <div class="artisan-help-dialog__grid">
+                        ${card("fa-solid fa-map", "ARTISAN.HelpForagingListsTitle", "ARTISAN.HelpForagingListsText", [
+      "ARTISAN.HelpDialogForaging1",
+      "ARTISAN.HelpForagingMixedResources",
+      "ARTISAN.HelpForagingMaxResources"
+    ])}
+                        ${card("fa-solid fa-dice-d20", "ARTISAN.HelpForagingRollTitle", "ARTISAN.HelpForagingRollText", [
+      "ARTISAN.HelpDialogForaging2",
+      "ARTISAN.HelpDialogForaging3",
+      "ARTISAN.HelpForagingCrits"
+    ])}
+                    </div>
+                </section>
+
+                <section id="artisan-help-harvest" class="artisan-help-dialog__section">
+                    <h3><i class="fa-solid fa-paw"></i> ${l("ARTISAN.HelpHarvestTitle")}</h3>
+                    <p>${l("ARTISAN.HelpDialogHarvestText")}</p>
+                    <div class="artisan-help-dialog__grid">
+                        ${card("fa-solid fa-layer-group", "ARTISAN.HelpHarvestPartsTitle", "ARTISAN.HelpHarvestPartsText", [
+      "ARTISAN.HelpDialogHarvest1",
+      "ARTISAN.HelpDialogHarvest2",
+      "ARTISAN.HelpHarvestCreatureType"
+    ])}
+                        ${card("fa-solid fa-screwdriver-wrench", "ARTISAN.HelpHarvestToolsTitle", "ARTISAN.HelpHarvestToolsText", [
+      "ARTISAN.HelpDialogHarvest3",
+      "ARTISAN.HelpHarvestConsumableTools",
+      "ARTISAN.HelpHarvestNoTarget"
+    ])}
+                    </div>
+                </section>
+
+                <section id="artisan-help-professions" class="artisan-help-dialog__section">
+                    <h3><i class="fa-solid fa-user-gear"></i> ${l("ARTISAN.HelpProfessionsTitle")}</h3>
+                    <p>${l("ARTISAN.HelpDialogProfessionsText")}</p>
+                    <div class="artisan-help-dialog__split">
+                        <article>
+                            <h4>${l("ARTISAN.HelpProfessionRulesTitle")}</h4>
+                            <ul>${list([
+      "ARTISAN.HelpDialogProfessions1",
+      "ARTISAN.HelpDialogProfessions2",
+      "ARTISAN.HelpDialogProfessions3",
+      "ARTISAN.HelpProfessionLevelSource"
+    ])}</ul>
+                        </article>
+                        <article>
+                            <h4>${l("ARTISAN.HelpProfessionThresholdsTitle")}</h4>
+                            <table class="artisan-help-dialog__table artisan-help-dialog__table--compact">
+                                <tbody>
+                                    <tr><th>${l("ARTISAN.Level")}</th><th>${l("ARTISAN.Xp")}</th><th>${l("ARTISAN.Gathering")}</th></tr>
+                                    <tr><td>0</td><td>0</td><td>x1</td></tr>
+                                    <tr><td>1</td><td>100</td><td>x1,2</td></tr>
+                                    <tr><td>2</td><td>500</td><td>x1,5</td></tr>
+                                    <tr><td>3</td><td>1500</td><td>x2</td></tr>
+                                    <tr><td>4</td><td>3000</td><td>x2,5</td></tr>
+                                    <tr><td>5</td><td>5000</td><td>x3</td></tr>
+                                </tbody>
+                            </table>
+                        </article>
+                    </div>
+                </section>
+
+                <section id="artisan-help-data" class="artisan-help-dialog__section artisan-help-dialog__note">
                     <h3><i class="fa-solid fa-floppy-disk"></i> ${l("ARTISAN.HelpDialogDataTitle")}</h3>
                     <p>${l("ARTISAN.HelpDialogDataText")}</p>
+                    <ul>${list([
+      "ARTISAN.HelpBackup1",
+      "ARTISAN.HelpBackup2",
+      "ARTISAN.HelpBackup3"
+    ])}</ul>
+                </section>
+
+                <section class="artisan-help-dialog__section artisan-help-dialog__warning">
+                    <h3><i class="fa-solid fa-triangle-exclamation"></i> ${l("ARTISAN.HelpTroubleshootingTitle")}</h3>
+                    <ul>${list([
+      "ARTISAN.HelpTroubleshooting1",
+      "ARTISAN.HelpTroubleshooting2",
+      "ARTISAN.HelpTroubleshooting3",
+      "ARTISAN.HelpTroubleshooting4"
+    ])}</ul>
                 </section>
             </article>
         `;
@@ -7528,6 +9656,32 @@ var Artisan = class _Artisan {
       onChange: () => {
         ui.notifications.info(_Artisan.localize("ARTISAN.LanguageReloadHint"));
       }
+    });
+  }
+  static getDefaultArtisanModuleSettings() {
+    return {
+      enableProfessionXp: true,
+      enableOutputQuality: true,
+      enableToolDamage: true,
+      enableToolDamageCrafting: true,
+      enableToolDamageForaging: true,
+      enableToolDamageHarvest: true,
+      enableToolDamageDisassembly: true,
+      enableHarvestRuinRisk: true,
+      enableActivityLog: true
+    };
+  }
+  static registerArtisanModuleSettings() {
+    const settings = game.settings.settings;
+    if (settings?.has?.("artisan.moduleSettings")) {
+      return;
+    }
+    game.settings.register("artisan", "moduleSettings", {
+      name: "ARTISAN.ArtisanSettings",
+      scope: "world",
+      config: false,
+      type: Object,
+      default: this.getDefaultArtisanModuleSettings()
     });
   }
   static registerUtilityMenus() {

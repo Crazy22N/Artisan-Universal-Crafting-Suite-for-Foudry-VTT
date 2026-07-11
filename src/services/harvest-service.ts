@@ -4,6 +4,8 @@ export type HarvestComponentCollection = "resources" | "tools";
 
 export type HarvestPartRarity = "common" | "uncommon" | "rare" | "veryRare" | "legendary";
 
+export type HarvestOutputMode = "random" | "all";
+
 export interface HarvestComponent {
     uuid: string;
     quantity: number;
@@ -39,7 +41,9 @@ export interface HarvestProfile {
     dc: number;
     time: number;
     maxResources: number;
+    harvestOutputMode: HarvestOutputMode;
     toolRequirement: string;
+    toolCriticalDamage: boolean;
     consumeRequiredTools: boolean;
     resources: HarvestComponent[];
     tools: HarvestComponent[];
@@ -165,7 +169,7 @@ export class HarvestService {
 
         const profile: HarvestProfile = {
             id: foundry.utils.randomID(),
-            name: "Nuova lista Harvest",
+            name: "Nuova lista Caccia",
             biome: "creatura",
             creatureType: "beast",
             profession: "erborista",
@@ -174,7 +178,9 @@ export class HarvestService {
             dc: 10,
             time: 1,
             maxResources: 3,
+            harvestOutputMode: "all",
             toolRequirement: "optional",
+            toolCriticalDamage: false,
             consumeRequiredTools: false,
             resources: [],
             tools: []
@@ -307,7 +313,7 @@ export class HarvestService {
 
         await this.saveProfiles(nextProfiles);
 
-        ui.notifications.info(`${document.name} aggiunto alla lista Harvest.`);
+        ui.notifications.info(`${document.name} aggiunto alla lista Caccia.`);
 
     }
 
@@ -382,7 +388,7 @@ export class HarvestService {
         const target = profiles.find(profile => profile.id === id);
 
         if (!target) {
-            ui.notifications.warn("Lista Harvest non trovata.");
+            ui.notifications.warn("Lista di caccia non trovata.");
             return;
         }
 
@@ -390,7 +396,7 @@ export class HarvestService {
 
         await this.saveProfiles(nextProfiles);
 
-        ui.notifications.info(`Lista Harvest eliminata: ${target.name}`);
+        ui.notifications.info(`Lista Caccia eliminata: ${target.name}`);
 
     }
 
@@ -512,19 +518,19 @@ export class HarvestService {
         const profile = this.getProfile(profileId);
 
         if (!profile) {
-            ui.notifications.warn("Lista Harvest non trovata.");
+            ui.notifications.warn("Lista di caccia non trovata.");
             return;
         }
 
         const actor = this.getSelectedActor();
 
         if (!actor) {
-            ui.notifications.warn("Seleziona un token con attore prima di usare Harvest.");
+            ui.notifications.warn("Seleziona un token con attore prima di usare Caccia.");
             return;
         }
 
         if (profile.resources.length === 0) {
-            ui.notifications.warn("La lista Harvest non contiene parti.");
+            ui.notifications.warn("La lista di caccia non contiene parti.");
             return;
         }
 
@@ -532,7 +538,7 @@ export class HarvestService {
 
         if (!toolRequirementResult.allowed) {
             await this.sendHarvestBlockedByToolRequirementToChat(actor, profile, toolRequirementResult.details);
-            ui.notifications.warn("Harvest bloccato: manca uno strumento richiesto.");
+            ui.notifications.warn("Caccia bloccata: manca uno strumento richiesto.");
             return;
         }
 
@@ -625,7 +631,9 @@ export class HarvestService {
             : [];
 
         const criticalFailureToolDamage = criticalFailure
-            ? await this.damageHarvestTool(actor, profile)
+            ? this.isProfileToolCriticalDamageEnabled(profile)
+                ? await this.damageHarvestTool(actor, profile)
+                : game.i18n.localize("ARTISAN.ToolDamageDisabled")
             : null;
 
         const professionXpGained = success
@@ -666,13 +674,13 @@ export class HarvestService {
         });
 
         if (criticalSuccess) {
-            ui.notifications.info("Harvest riuscito con successo critico.");
+            ui.notifications.info("Caccia riuscita con successo critico.");
         } else if (success) {
-            ui.notifications.info("Harvest riuscito.");
+            ui.notifications.info("Caccia riuscita.");
         } else if (criticalFailure) {
-            ui.notifications.error("Harvest fallito criticamente.");
+            ui.notifications.error("Caccia fallita criticamente.");
         } else {
-            ui.notifications.warn("Harvest fallito.");
+            ui.notifications.warn("Caccia fallita.");
         }
 
     }
@@ -727,11 +735,12 @@ export class HarvestService {
                 <p><strong>Professione:</strong> ${this.escapeHtml(this.getProfessionLabel(profile.profession))}</p>
                 <p><strong>Livello professione PG:</strong> ${actorProfession.level}</p>
                 <p><strong>XP professione PG:</strong> ${actorProfession.xp}</p>
-                <p><strong>Moltiplicatore harvest PG:</strong> ${this.escapeHtml(actorProfession.gatheringMultiplierLabel)}</p>
+                <p><strong>Moltiplicatore caccia PG:</strong> ${this.escapeHtml(actorProfession.gatheringMultiplierLabel)}</p>
                 <p><strong>Abilità:</strong> ${this.escapeHtml(profile.skill || "Non impostata")}</p>
                 <p><strong>CD:</strong> ${profile.dc}</p>
                 <p><strong>Tempo:</strong> ${this.formatMinutes(profile.time)}</p>
                 <p><strong>Massimo parti diverse:</strong> ${profile.maxResources}</p>
+                <p><strong>Modalità risultati:</strong> ${this.escapeHtml(this.getHarvestOutputModeLabel(profile.harvestOutputMode))}</p>
                 <p><strong>Strumenti:</strong> ${this.escapeHtml(this.getToolRequirementLabel(profile.toolRequirement))}</p>
                 <p><strong>Consuma strumenti richiesti:</strong> ${profile.consumeRequiredTools ? "Sì" : "No"}</p>
 
@@ -745,7 +754,7 @@ export class HarvestService {
 
         return new Promise(resolve => {
             new Dialog({
-                title: "Avvia Harvest",
+                title: "Avvia Caccia",
                 content,
                 buttons: {
                     cancel: {
@@ -753,7 +762,7 @@ export class HarvestService {
                         callback: () => resolve(false)
                     },
                     confirm: {
-                        label: "Tira Harvest",
+                        label: "Tira Caccia",
                         callback: () => resolve(true)
                     }
                 },
@@ -829,8 +838,8 @@ export class HarvestService {
             profile.resources
         );
 
-        const availableResources = resources.filter(resource => {
-            if (!resource.found || resource.weight <= 0) {
+        const baseAvailableResources = resources.filter(resource => {
+            if (!resource.found) {
                 return false;
             }
 
@@ -840,6 +849,22 @@ export class HarvestService {
 
             return this.actorHasRequiredToolForResource(actor, resource);
         });
+
+        if (baseAvailableResources.length === 0) {
+            return [];
+        }
+
+        if (profile.harvestOutputMode === "all") {
+            return baseAvailableResources.map(resource => ({
+                ...resource,
+                rolledQuantity: this.rollQuantityRange(
+                    resource.minQuantity,
+                    resource.maxQuantity
+                )
+            }));
+        }
+
+        const availableResources = baseAvailableResources.filter(resource => resource.weight > 0);
 
         if (availableResources.length === 0) {
             return [];
@@ -1014,7 +1039,7 @@ export class HarvestService {
             speaker: ChatMessage.getSpeaker({ actor }),
             content: `
                 <div class="artisan-chat-card artisan-chat-card--blocked">
-                    <h2>Harvest bloccato</h2>
+                    <h2>Caccia bloccata</h2>
                     <p><strong>Attore:</strong> ${this.escapeHtml(actor.name ?? "Attore")}</p>
                     <p><strong>Lista:</strong> ${this.escapeHtml(profile.name)}</p>
                     <p>Questa lista richiede almeno uno degli strumenti configurati.</p>
@@ -1023,6 +1048,27 @@ export class HarvestService {
                 </div>
             `
         });
+
+    }
+
+
+    private normalizeHarvestOutputMode(value: unknown): HarvestOutputMode {
+
+        const clean = String(value ?? "all").trim().toLowerCase();
+
+        if (!clean || clean === "all" || clean === "tutte" || clean === "tutti" || clean === "complete" || clean === "completo") {
+            return "all";
+        }
+
+        return "random";
+
+    }
+
+    private getHarvestOutputModeLabel(value: unknown): string {
+
+        return this.normalizeHarvestOutputMode(value) === "all"
+            ? "Tutte le parti disponibili"
+            : "Mista casuale";
 
     }
 
@@ -1080,9 +1126,11 @@ export class HarvestService {
 
             const proficiencyBonus = this.getActorProficiencyBonus(actor);
 
-            const quantity = Math.max(0, proficiencyBonus);
+            const applied = possessed && proficient && proficiencyBonus > 0;
 
-            const applied = possessed && proficient && quantity > 0;
+            const quantity = applied
+                ? Math.max(0, proficiencyBonus)
+                : 0;
 
             if (applied) {
                 totalBonus += quantity;
@@ -1186,13 +1234,39 @@ export class HarvestService {
 
     }
 
+    private isProfileToolCriticalDamageEnabled(profile: { toolCriticalDamage?: boolean }): boolean {
+
+        return Boolean((profile as any).toolCriticalDamage ?? false);
+
+    }
+
+    private getArtisanModuleSetting(key: string, defaultValue: boolean): boolean {
+
+        try {
+            const settings = game.settings.get("artisan", "moduleSettings") as any;
+
+            if (settings && typeof settings[key] === "boolean") {
+                return settings[key];
+            }
+
+            if (settings && typeof settings.enableToolDamage === "boolean") {
+                return settings.enableToolDamage;
+            }
+        } catch (_error) {
+            return defaultValue;
+        }
+
+        return defaultValue;
+
+    }
+
     private async damageHarvestTool(
         actor: Actor,
         profile: HarvestProfile
     ): Promise<string | null> {
 
         if (profile.tools.length === 0) {
-            return "Nessuno strumento configurato nella lista Harvest.";
+            return "Nessuno strumento configurato nella lista Caccia.";
         }
 
         for (const tool of profile.tools) {
@@ -1408,7 +1482,7 @@ export class HarvestService {
         const source = await this.safeFromUuid(uuid) as any;
 
         if (!source || source.documentName !== "Item") {
-            ui.notifications.warn(`Output Harvest non valido: ${uuid}`);
+            ui.notifications.warn(`Output Caccia non valido: ${uuid}`);
             return;
         }
 
@@ -1596,17 +1670,17 @@ export class HarvestService {
     }): Promise<void> {
 
         const title = data.criticalSuccess
-            ? "🌟 Successo critico Harvest"
+            ? "🌟 Successo critico Caccia"
             : data.criticalFailure
-                ? "💥 Fallimento critico Harvest"
+                ? "💥 Fallimento critico Caccia"
                 : data.success
-                    ? "✅ Harvest riuscito"
-                    : "❌ Harvest fallito";
+                    ? "✅ Caccia riuscita"
+                    : "❌ Caccia fallita";
 
         const specialResultText = data.criticalSuccess
             ? "Successo critico: quantità dopo moltiplicatore raddoppiata."
             : data.criticalFailure
-                ? `Fallimento critico: prova fallita automaticamente, nessuna parte harvest. ${data.criticalFailureToolDamage ?? ""}`.trim()
+                ? `Fallimento critico: prova fallita automaticamente, nessuna parte da caccia. ${data.criticalFailureToolDamage ?? ""}`.trim()
                 : "-";
 
         const resourceRows = data.collectedResources.length > 0
@@ -1624,7 +1698,7 @@ export class HarvestService {
             `).join("")
             : `
                 <tr>
-                    <td colspan="8">Nessuna parte harvest.</td>
+                    <td colspan="8">Nessuna parte da caccia.</td>
                 </tr>
             `;
 
@@ -1647,8 +1721,8 @@ export class HarvestService {
         const resultText = data.success && data.collectedResources.length > 0
             ? `${data.collectedResources.length} parti diverse aggiunte all'attore.`
             : data.success && data.failedResources.length > 0
-                ? "Harvest riuscito, ma tutte le parti selezionate sono state rovinate dalla rarità."
-                : "Nessuna parte harvest.";
+                ? "Caccia riuscita, ma tutte le parti selezionate sono state rovinate dalla rarità."
+                : "Nessuna parte da caccia.";
 
         const consumedRequiredToolsText = data.consumedRequiredTools.length > 0
             ? data.consumedRequiredTools.map(tool => {
@@ -1714,7 +1788,7 @@ export class HarvestService {
                             <td>${this.escapeHtml(data.actorProfessionSource)}</td>
                         </tr>
                         <tr>
-                            <td><strong>Moltiplicatore harvest PG</strong></td>
+                            <td><strong>Moltiplicatore caccia PG</strong></td>
                             <td>${this.escapeHtml(data.gatheringMultiplierLabel)}</td>
                         </tr>
                         <tr>
@@ -1756,6 +1830,10 @@ export class HarvestService {
                         <tr>
                             <td><strong>Massimo parti diverse</strong></td>
                             <td>${data.profile.maxResources}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Modalità risultati</strong></td>
+                            <td>${this.escapeHtml(this.getHarvestOutputModeLabel(data.profile.harvestOutputMode))}</td>
                         </tr>
                         <tr>
                             <td><strong>Parti diverse raccolte</strong></td>
@@ -1850,7 +1928,7 @@ export class HarvestService {
             HarvestService.SETTING_SCOPE,
             HarvestService.SETTING_KEY,
             {
-                name: "Artisan Harvest Profiles",
+                name: "Artisan Caccia Profiles",
                 scope: "world",
                 config: false,
                 type: Array,
@@ -1900,7 +1978,7 @@ export class HarvestService {
 
         return {
             id: String(profile.id || foundry.utils.randomID()),
-            name: String(profile.name || "Lista Harvest"),
+            name: String(profile.name || "Lista Caccia"),
             biome: String(profile.biome || "creatura"),
             creatureType: this.normalizeCreatureType((profile as any).creatureType ?? profile.biome ?? "beast"),
             profession,
@@ -1909,7 +1987,9 @@ export class HarvestService {
             dc: Number(profile.dc ?? 10),
             time: Number(profile.time ?? 1),
             maxResources: Math.max(1, Math.floor(Number((profile as any).maxResources ?? 1))),
+            harvestOutputMode: this.normalizeHarvestOutputMode((profile as any).harvestOutputMode),
             toolRequirement: String((profile as any).toolRequirement || "optional") === "required" ? "required" : "optional",
+            toolCriticalDamage: Boolean((profile as any).toolCriticalDamage ?? false),
             consumeRequiredTools: Boolean((profile as any).consumeRequiredTools ?? false),
             resources: this.normalizeComponents(profile.resources),
             tools: this.normalizeComponents(profile.tools)

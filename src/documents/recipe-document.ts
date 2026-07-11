@@ -20,6 +20,19 @@ export interface ArtisanRecipeData {
     profile: string;
     difficulty: number;
     craftingTime: number;
+    craftingXp: number;
+    toolRequirement: string;
+    toolCriticalDamage: boolean;
+    qualityFormulaPath: string;
+    qualityBonusGood: number;
+    qualityBonusSuperior: number;
+    qualityBonusExcellent: number;
+    qualityDiceGood: string;
+    qualityDiceSuperior: string;
+    qualityDiceExcellent: string;
+    qualityEffectGood: string;
+    qualityEffectSuperior: string;
+    qualityEffectExcellent: string;
     skill: string;
     dc: number;
     ingredients: ArtisanRecipeComponent[];
@@ -56,6 +69,19 @@ export class RecipeDocument {
             profile: "",
             difficulty: 0,
             craftingTime: 0,
+            craftingXp: 0,
+            toolRequirement: "optional",
+            toolCriticalDamage: false,
+            qualityFormulaPath: "",
+            qualityBonusGood: 0,
+            qualityBonusSuperior: 0,
+            qualityBonusExcellent: 0,
+            qualityDiceGood: "",
+            qualityDiceSuperior: "",
+            qualityDiceExcellent: "",
+            qualityEffectGood: "auto",
+            qualityEffectSuperior: "auto",
+            qualityEffectExcellent: "auto",
             skill: "",
             dc: 10,
             ingredients: [],
@@ -81,7 +107,20 @@ export class RecipeDocument {
             category: String(merged.category ?? ""),
             profile: String(merged.profile ?? ""),
             difficulty: Number(merged.difficulty ?? 0),
-            craftingTime: Number(merged.craftingTime ?? 0),
+            craftingTime: Math.max(0, Math.floor(Number(merged.craftingTime ?? 0))),
+            craftingXp: Math.max(0, Math.floor(Number((merged as any).craftingXp ?? (merged as any).xp ?? 0))),
+            toolRequirement: String((merged as any).toolRequirement || "optional") === "required" ? "required" : "optional",
+            toolCriticalDamage: Boolean((merged as any).toolCriticalDamage ?? false),
+            qualityFormulaPath: String((merged as any).qualityFormulaPath ?? ""),
+            qualityBonusGood: Math.max(0, Math.floor(Number((merged as any).qualityBonusGood ?? 0))),
+            qualityBonusSuperior: Math.max(0, Math.floor(Number((merged as any).qualityBonusSuperior ?? 0))),
+            qualityBonusExcellent: Math.max(0, Math.floor(Number((merged as any).qualityBonusExcellent ?? 0))),
+            qualityDiceGood: String((merged as any).qualityDiceGood ?? ""),
+            qualityDiceSuperior: String((merged as any).qualityDiceSuperior ?? ""),
+            qualityDiceExcellent: String((merged as any).qualityDiceExcellent ?? ""),
+            qualityEffectGood: this.normalizeQualityEffectType((merged as any).qualityEffectGood ?? "auto"),
+            qualityEffectSuperior: this.normalizeQualityEffectType((merged as any).qualityEffectSuperior ?? "auto"),
+            qualityEffectExcellent: this.normalizeQualityEffectType((merged as any).qualityEffectExcellent ?? "auto"),
             skill: String(merged.skill ?? ""),
             dc: Number(merged.dc ?? 10),
             ingredients: this.normalizeComponents(merged.ingredients),
@@ -264,6 +303,18 @@ export class RecipeDocument {
             profile: recipe.profile,
             difficulty: recipe.difficulty,
             craftingTime: recipe.craftingTime,
+            craftingXp: recipe.craftingXp,
+            toolRequirement: recipe.toolRequirement,
+            qualityFormulaPath: recipe.qualityFormulaPath,
+            qualityBonusGood: recipe.qualityBonusGood,
+            qualityBonusSuperior: recipe.qualityBonusSuperior,
+            qualityBonusExcellent: recipe.qualityBonusExcellent,
+            qualityDiceGood: recipe.qualityDiceGood,
+            qualityDiceSuperior: recipe.qualityDiceSuperior,
+            qualityDiceExcellent: recipe.qualityDiceExcellent,
+            qualityEffectGood: recipe.qualityEffectGood,
+            qualityEffectSuperior: recipe.qualityEffectSuperior,
+            qualityEffectExcellent: recipe.qualityEffectExcellent,
             skill: recipe.skill,
             dc: recipe.dc,
 
@@ -275,6 +326,32 @@ export class RecipeDocument {
             toolCount: tools.length,
             outputCount: outputs.length
         };
+
+    }
+
+    private static normalizeQualityEffectType(value: unknown): string {
+
+        const raw = String(value ?? "auto").trim().toLowerCase();
+
+        const allowed = new Set([
+            "auto",
+            "healing",
+            "acid",
+            "fire",
+            "poison",
+            "cold",
+            "lightning",
+            "thunder",
+            "necrotic",
+            "radiant",
+            "psychic",
+            "force",
+            "bludgeoning",
+            "piercing",
+            "slashing"
+        ]);
+
+        return allowed.has(raw) ? raw : "auto";
 
     }
 
