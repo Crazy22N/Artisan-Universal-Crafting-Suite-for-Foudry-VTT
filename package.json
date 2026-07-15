@@ -1,0 +1,17 @@
+{
+  "name": "artisan",
+  "version": "1.2.0",
+  "description": "Artisan - Crafting, gathering, hunting, disassembly and profession progression for Foundry VTT",
+  "private": true,
+  "type": "module",
+  "author": "Crazy",
+  "license": "MIT",
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.3"
+  }
+}
