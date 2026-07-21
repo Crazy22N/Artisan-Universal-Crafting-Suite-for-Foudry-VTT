@@ -3,6 +3,30 @@
 Tutte le modifiche rilevanti di Artisan sono documentate in questo file.  
 All notable changes to Artisan are documented in this file.
 
+## [1.2.3] - 2026-07-21
+
+### Italiano
+
+- Corretto il backup completo: ora esporta e importa anche le liste Dissassemblare.
+- Corretto un errore che interrompeva l'esportazione del backup completo.
+- Aggiunto un controllo TypeScript reale per il codice usato dal modulo.
+- Rimossi prototipi non collegati e copie duplicate di template e fogli di stile.
+- Il bonus competenza strumenti non si somma più quando sono configurati più strumenti.
+- Build resa ripetibile in `dist/artisan`, senza scrivere automaticamente nella cartella dati di Foundry.
+- Aggiunti validazione automatica, ZIP installabile, ZIP sorgente e checksum SHA-256.
+- Allineati manifest, documentazione e traduzioni.
+
+### English
+
+- Fixed full backup export/import to include Disassembly lists.
+- Fixed an error that interrupted full backup export.
+- Added effective TypeScript validation for the code used by the module.
+- Removed disconnected prototypes and duplicate template/style sources.
+- Tool proficiency no longer stacks when several tools are configured.
+- Builds are now reproducible in `dist/artisan` and no longer write automatically to Foundry's data folder.
+- Added automatic validation, installable/source archives and SHA-256 checksums.
+- Aligned the manifest, documentation and translations.
+
 ## [1.2.2] - 2026-07-21
 
 ### Italiano

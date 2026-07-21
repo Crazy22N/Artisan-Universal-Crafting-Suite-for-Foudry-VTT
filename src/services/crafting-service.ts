@@ -1882,14 +1882,14 @@ export class CraftingService {
                 )
                 : false;
 
-            const bonus = possessed && proficient
+            const bonus = possessed && proficient && totalBonus === 0
                 ? Math.max(0, proficiencyBonus)
                 : 0;
 
             const applied = bonus > 0;
 
             if (applied) {
-                totalBonus += bonus;
+                totalBonus = bonus;
             }
 
             details.push({
@@ -2207,7 +2207,7 @@ export class CraftingService {
                 buttons: {
                     confirm: {
                         label: "Continua",
-                        callback: html => {
+                        callback: (html: any) => {
                             const raw = html.find(`[name="${fieldName}"]`).val();
                             const value = Math.max(
                                 min,

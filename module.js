@@ -625,7 +625,13 @@ var ProfessionService = class {
     return multipliers[this.normalizeLevel(value)] ?? 1;
   }
   formatMultiplier(value) {
-    return String(value).replace(".", ",");
+    const selectedLanguage = String(
+      game.settings.get("artisan", "interfaceLanguage") ?? "system"
+    );
+    const locale = selectedLanguage === "system" ? String(game.i18n.lang ?? navigator.language ?? "it") : selectedLanguage;
+    return new Intl.NumberFormat(locale, {
+      maximumFractionDigits: 1
+    }).format(value);
   }
   getLocalizedLabel(profession) {
     const key = `ARTISAN.Profession.${profession.id}.Label`;
@@ -1815,10 +1821,10 @@ var CraftingService = class {
         actorItem,
         sourceItem
       ) : false;
-      const bonus = possessed && proficient ? Math.max(0, proficiencyBonus) : 0;
+      const bonus = possessed && proficient && totalBonus === 0 ? Math.max(0, proficiencyBonus) : 0;
       const applied = bonus > 0;
       if (applied) {
-        totalBonus += bonus;
+        totalBonus = bonus;
       }
       details.push({
         name: tool.recipeEntry.name,
@@ -2758,7 +2764,7 @@ var DisassemblyService = class _DisassemblyService {
         weight: collection === "resources" ? this.resolveResourceWeight(options.weight, importedWeight, options.rarity) : options.weight,
         minQuantity: options.minQuantity,
         maxQuantity: options.maxQuantity,
-        rarity: options.rarity
+        rarity: this.normalizeResourceRarity(options.rarity)
       });
       const nextCollection = [...profile[collection]];
       const existingIndex = nextCollection.findIndex((entry) => entry.uuid === component.uuid);
@@ -3193,10 +3199,10 @@ var DisassemblyService = class _DisassemblyService {
       const possessed = !!actorItem;
       const proficient = possessed ? this.actorIsProficientWithTool(actor, actorItem, document2) : false;
       const proficiencyBonus = this.getActorProficiencyBonus(actor);
-      const applied = possessed && proficient && proficiencyBonus > 0;
+      const applied = possessed && proficient && proficiencyBonus > 0 && totalBonus === 0;
       const quantity = applied ? Math.max(0, proficiencyBonus) : 0;
       if (applied) {
-        totalBonus += quantity;
+        totalBonus = quantity;
       }
       details.push({ name, quantity, possessed, proficient, applied });
     }
@@ -3831,7 +3837,7 @@ var ForagingService = class _ForagingService {
         weight: collection === "resources" ? this.resolveResourceWeight(options.weight, importedWeight, options.rarity) : options.weight,
         minQuantity: options.minQuantity,
         maxQuantity: options.maxQuantity,
-        rarity: options.rarity
+        rarity: this.normalizeResourceRarity(options.rarity)
       });
       const nextCollection = [...profile[collection]];
       const existingIndex = nextCollection.findIndex((entry) => entry.uuid === component.uuid);
@@ -4275,10 +4281,10 @@ var ForagingService = class _ForagingService {
       const possessed = !!actorItem;
       const proficient = possessed ? this.actorIsProficientWithTool(actor, actorItem, document2) : false;
       const proficiencyBonus = this.getActorProficiencyBonus(actor);
-      const applied = possessed && proficient && proficiencyBonus > 0;
+      const applied = possessed && proficient && proficiencyBonus > 0 && totalBonus === 0;
       const quantity = applied ? Math.max(0, proficiencyBonus) : 0;
       if (applied) {
-        totalBonus += quantity;
+        totalBonus = quantity;
       }
       details.push({
         name,
@@ -5074,7 +5080,7 @@ var HarvestService = class _HarvestService {
         weight: collection === "resources" ? this.resolveResourceWeight(options.weight, importedWeight, options.rarity) : options.weight,
         minQuantity: options.minQuantity,
         maxQuantity: options.maxQuantity,
-        rarity: options.rarity,
+        rarity: this.normalizeRarity(options.rarity),
         requiredToolUuid: options.requiredToolUuid
       });
       const nextCollection = [...profile[collection]];
@@ -5591,10 +5597,10 @@ var HarvestService = class _HarvestService {
       const possessed = !!actorItem;
       const proficient = possessed ? this.actorIsProficientWithTool(actor, actorItem, document2) : false;
       const proficiencyBonus = this.getActorProficiencyBonus(actor);
-      const applied = possessed && proficient && proficiencyBonus > 0;
+      const applied = possessed && proficient && proficiencyBonus > 0 && totalBonus === 0;
       const quantity = applied ? Math.max(0, proficiencyBonus) : 0;
       if (applied) {
-        totalBonus += quantity;
+        totalBonus = quantity;
       }
       details.push({
         name,
@@ -6636,7 +6642,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const recipeService = new RecipeService();
     const foragingService = new ForagingService();
     const harvestService = new HarvestService();
-    const disassemblyService2 = new DisassemblyService();
+    const disassemblyService = new DisassemblyService();
     const professionService = new ProfessionService();
     const allRecipes = recipeService.getExplorerRecipes();
     const selectedActor = canvas?.tokens?.controlled?.[0]?.actor ?? null;
@@ -6655,7 +6661,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const harvestData = await harvestService.getManagerData(
       this.selectedHarvestProfileId
     );
-    const disassemblyData = await disassemblyService2.getManagerData(
+    const disassemblyData = await disassemblyService.getManagerData(
       this.selectedDisassemblyProfileId
     );
     if (!this.selectedForagingProfileId && foragingData.selectedProfile) {
@@ -7037,7 +7043,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         void this.onRecipeFieldChanged(target);
         return;
       }
-      if (target.matches("[data-artisan-component-row-quantity]")) {
+      if (target instanceof HTMLInputElement && target.matches("[data-artisan-component-row-quantity]")) {
         void this.onComponentQuantityChanged(target);
         return;
       }
@@ -7065,7 +7071,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         void this.onDisassemblyComponentFieldChanged(target);
         return;
       }
-      if (target.matches("[data-artisan-actor-profession-field]")) {
+      if (target instanceof HTMLInputElement && target.matches("[data-artisan-actor-profession-field]")) {
         void this.onActorProfessionFieldChanged(target);
         return;
       }
@@ -8462,6 +8468,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
   onExportBackupClicked() {
     const foragingService = new ForagingService();
     const harvestService = new HarvestService();
+    const disassemblyService = new DisassemblyService();
     const recipes = game.items.filter((item) => item.getFlag("artisan", "type") === "recipe").map((item) => this.toRecipeExportData(item));
     const actorProfessions = game.actors.map((actor) => {
       const professions = actor.getFlag("artisan", "professions");
@@ -8484,11 +8491,13 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         recipes: recipes.length,
         foragingProfiles: foragingService.getProfiles().length,
         harvestProfiles: harvestService.getProfiles().length,
+        disassemblyProfiles: disassemblyService.getProfiles().length,
         actorProfessions: actorProfessions.length
       },
       recipes,
       foragingProfiles: foragingService.getProfiles(),
       harvestProfiles: harvestService.getProfiles(),
+      disassemblyProfiles: disassemblyService.getProfiles(),
       actorProfessions
     };
     saveDataToFile(
@@ -8537,16 +8546,20 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       const harvestResult = await harvestService.importProfiles({
         profiles: payload.harvestProfiles ?? []
       });
+      const disassemblyService = new DisassemblyService();
+      const disassemblyResult = await disassemblyService.importProfiles({
+        profiles: payload.disassemblyProfiles ?? []
+      });
       const actorResult = await this.importActorProfessionBackups(
         payload.actorProfessions ?? []
       );
       ui.notifications.info(
-        `Backup importato: ricette ${recipeResult.imported}/${recipeResult.skipped}, Raccolta ${foragingResult.imported}/${foragingResult.skipped}, Caccia ${harvestResult.imported}/${harvestResult.skipped}, professioni PG ${actorResult.imported}/${actorResult.skipped}.`
+        `Backup importato: ricette ${recipeResult.imported}/${recipeResult.skipped}, Raccolta ${foragingResult.imported}/${foragingResult.skipped}, Caccia ${harvestResult.imported}/${harvestResult.skipped}, Dissassemblare ${disassemblyResult.imported}/${disassemblyResult.skipped}, professioni PG ${actorResult.imported}/${actorResult.skipped}.`
       );
       void this.addActivityLogEntry(
         "backup",
         "Backup Artisan importato",
-        `Ricette importate ${recipeResult.imported}, Raccolta ${foragingResult.imported}, Caccia ${harvestResult.imported}, professioni PG ${actorResult.imported}.`
+        `Ricette importate ${recipeResult.imported}, Raccolta ${foragingResult.imported}, Caccia ${harvestResult.imported}, Dissassemblare ${disassemblyResult.imported}, professioni PG ${actorResult.imported}.`
       );
       this.renderPreservingUiState();
     } catch (error) {

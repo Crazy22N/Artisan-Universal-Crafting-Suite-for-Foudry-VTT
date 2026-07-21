@@ -4,7 +4,7 @@ export class RecipeRepository {
 
     public getRecipes(): Item[] {
 
-        return game.items.filter(item => {
+        return game.items.filter((item: Item) => {
             return RecipeDocument.isRecipe(item);
         });
 

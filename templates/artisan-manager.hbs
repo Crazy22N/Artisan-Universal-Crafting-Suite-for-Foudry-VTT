@@ -669,26 +669,26 @@
                         </div>
 
                         <div class="artisan-inspector__field">
-                            <label>Uso strumenti</label>
+                            <label>{{localize 'ARTISAN.ToolUsage'}}</label>
                             <select
                                 data-artisan-field="toolRequirement"
                                 data-artisan-tool-requirement-select
                                 data-current-requirement="{{selectedRecipe.toolRequirement}}"
                                 data-recipe-id="{{selectedRecipe.id}}"
                             >
-                                <option value="optional">Opzionali: non bloccano, danno bonus solo se competente</option>
-                                <option value="required">Obbligatori: almeno uno deve essere posseduto</option>
+                                <option value="optional">{{localize 'ARTISAN.ToolOptionalOption'}}</option>
+                                <option value="required">{{localize 'ARTISAN.ToolRequiredOption'}}</option>
                             </select>
-                            <small>La competenza non rende obbligatorio lo strumento: serve solo ad aggiungere il bonus competenza del PG.</small>
+                            <small>{{localize 'ARTISAN.ToolRequirementCompetenceHelp'}}</small>
                         </div>
 
                         <div class="artisan-inspector__field artisan-toggle-field">
-                            <label>Rottura strumenti</label>
+                            <label>{{localize 'ARTISAN.ToolBreakage'}}</label>
                             <label class="artisan-checkbox-line">
                                 <input type="checkbox" data-artisan-field="toolCriticalDamage" data-recipe-id="{{selectedRecipe.id}}" {{#if selectedRecipe.toolCriticalDamage}}checked{{/if}}>
-                                <span>Con 1 naturale lo strumento può rompersi</span>
+                                <span>{{localize 'ARTISAN.ToolBreakageNaturalOne'}}</span>
                             </label>
-                            <small>Attivalo solo per ricette difficili o rischiose. Le ricette semplici possono restare senza rischio.</small>
+                            <small>{{localize 'ARTISAN.ToolBreakageCraftingHelp'}}</small>
                         </div>
 
                         <div class="artisan-inspector__field">
@@ -764,7 +764,7 @@
 
                     <section class="artisan-component-panel" data-artisan-drop-zone data-recipe-id="{{selectedRecipe.id}}" data-collection="tools">
                         <header class="artisan-component-panel__header">
-                            <h3>Strumenti</h3>
+                            <h3>{{localize 'ARTISAN.Tools'}}</h3>
                             <span>{{localize 'ARTISAN.DropItemOrUuid'}}</span>
                         </header>
 
@@ -961,10 +961,10 @@
                             <div class="artisan-inspector__field">
                                 <label>{{localize 'ARTISAN.ActorProfession'}}</label>
                                 {{#if selectedForagingActorProfession}}
-                                    <input type="text" value="{{selectedForagingActorName}} — livello {{selectedForagingActorProfession.level}}, XP {{selectedForagingActorProfession.xp}}, prossimo livello: {{selectedForagingActorProfession.xpToNextLevel}} XP, raccolta {{selectedForagingActorProfession.gatheringMultiplierLabel}}" disabled>
+                                    <input type="text" value="{{selectedForagingActorProfessionSummary}}" disabled>
                                     <small>{{localize 'ARTISAN.ForagingActorLevelHelp'}}</small>
                                 {{else}}
-                                    <input type="text" value="Seleziona un token per leggere la professione dal PG" disabled>
+                                    <input type="text" value="{{selectedForagingActorProfessionSummary}}" disabled>
                                 {{/if}}
                             </div>
 
@@ -990,21 +990,21 @@
                             </div>
 
                             <div class="artisan-inspector__field">
-                                <label>Uso strumenti</label>
+                                <label>{{localize 'ARTISAN.ToolUsage'}}</label>
                                 <select data-artisan-foraging-field="toolRequirement" data-artisan-tool-requirement-select data-current-requirement="{{selectedForagingProfile.toolRequirement}}" data-profile-id="{{selectedForagingProfile.id}}">
-                                    <option value="optional">Opzionali: non bloccano, danno bonus solo se competente</option>
-                                    <option value="required">Obbligatori: almeno uno deve essere posseduto</option>
+                                    <option value="optional">{{localize 'ARTISAN.ToolOptionalOption'}}</option>
+                                    <option value="required">{{localize 'ARTISAN.ToolRequiredOption'}}</option>
                                 </select>
-                                <small>Se obbligatori, la Raccolta parte solo se il PG possiede almeno uno strumento della lista.</small>
+                                <small>{{localize 'ARTISAN.ToolRequiredForagingHelp'}}</small>
                             </div>
 
                             <div class="artisan-inspector__field artisan-toggle-field">
-                                <label>Rottura strumenti</label>
+                                <label>{{localize 'ARTISAN.ToolBreakage'}}</label>
                                 <label class="artisan-checkbox-line">
                                     <input type="checkbox" data-artisan-foraging-field="toolCriticalDamage" data-profile-id="{{selectedForagingProfile.id}}" {{#if selectedForagingProfile.toolCriticalDamage}}checked{{/if}}>
-                                    <span>Con 1 naturale lo strumento può rompersi</span>
+                                    <span>{{localize 'ARTISAN.ToolBreakageNaturalOne'}}</span>
                                 </label>
-                                <small>Attivalo solo per liste di raccolta difficili o pericolose.</small>
+                                <small>{{localize 'ARTISAN.ToolBreakageForagingHelp'}}</small>
                             </div>
                         </div>
 
@@ -1016,14 +1016,14 @@
 
                             <div class="artisan-component-add artisan-foraging-resource-add">
                                 <input type="text" placeholder="{{localize 'ARTISAN.ResourceUuid'}}" data-artisan-foraging-component-uuid>
-                                <select title="Rarità di ritrovamento" data-artisan-foraging-component-rarity>
+                                <select title="{{localize 'ARTISAN.DiscoveryRarityTitle'}}" data-artisan-foraging-component-rarity>
                                     <option value="common">{{localize 'ARTISAN.Common'}}</option>
                                     <option value="uncommon">{{localize 'ARTISAN.Uncommon'}}</option>
                                     <option value="rare">{{localize 'ARTISAN.Rare'}}</option>
                                     <option value="veryRare">{{localize 'ARTISAN.VeryRare'}}</option>
                                     <option value="legendary">{{localize 'ARTISAN.Legendary'}}</option>
                                 </select>
-                                <input type="number" min="0.1" step="0.1" title="Peso/probabilità manuale: se vuoto usa la rarità" placeholder="Probabilità" data-artisan-foraging-component-weight>
+                                <input type="number" min="0.1" step="0.1" title="{{localize 'ARTISAN.ManualProbabilityTitle'}}" placeholder="{{localize 'ARTISAN.Probability'}}" data-artisan-foraging-component-weight>
                                 <input type="number" min="1" step="1" value="1" title="{{localize 'ARTISAN.MinQuantity'}}" placeholder="{{localize 'ARTISAN.Min'}}" data-artisan-foraging-component-min-quantity>
                                 <input type="number" min="1" step="1" value="1" title="{{localize 'ARTISAN.MaxQuantity'}}" placeholder="{{localize 'ARTISAN.Max'}}" data-artisan-foraging-component-max-quantity>
                                 <button type="button" class="artisan-small-button" data-artisan-foraging-add-component data-profile-id="{{selectedForagingProfile.id}}" data-collection="resources">
@@ -1041,7 +1041,7 @@
                                                 <strong>{{name}}</strong>
                                                 <code>{{uuid}}</code>
                                             </div>
-                                            <label class="artisan-foraging-edit-field" title="Rarità di ritrovamento">
+                                            <label class="artisan-foraging-edit-field" title="{{localize 'ARTISAN.DiscoveryRarityTitle'}}">
                                                 <span>{{localize 'ARTISAN.Rarity'}}</span>
                                                 <select
                                                     data-artisan-foraging-rarity-select
@@ -1059,8 +1059,8 @@
                                                 </select>
                                             </label>
 
-                                            <label class="artisan-foraging-edit-field" title="Peso/probabilità manuale. La rarità aggiorna questo valore automaticamente.">
-                                                <span>Prob.</span>
+                                            <label class="artisan-foraging-edit-field" title="{{localize 'ARTISAN.ManualProbabilityAutoTitle'}}">
+                                                <span>{{localize 'ARTISAN.ProbabilityShort'}}</span>
                                                 <input
                                                     type="number"
                                                     min="0.1"
@@ -1073,7 +1073,7 @@
                                                 >
                                             </label>
 
-                                            <label class="artisan-foraging-edit-field" title="Quantità minima raccolta">
+                                            <label class="artisan-foraging-edit-field" title="{{localize 'ARTISAN.MinGatherQuantityTitle'}}">
                                                 <span>{{localize 'ARTISAN.Min'}}</span>
                                                 <input
                                                     type="number"
@@ -1087,7 +1087,7 @@
                                                 >
                                             </label>
 
-                                            <label class="artisan-foraging-edit-field" title="Quantità massima raccolta">
+                                            <label class="artisan-foraging-edit-field" title="{{localize 'ARTISAN.MaxGatherQuantityTitle'}}">
                                                 <span>{{localize 'ARTISAN.Max'}}</span>
                                                 <input
                                                     type="number"
@@ -1136,7 +1136,7 @@
                                                 <strong>{{name}}</strong>
                                                 <code>{{uuid}}</code>
                                             </div>
-                                            <span class="artisan-component-row__quantity-static" title="Bonus alla prova applicato solo se il PG possiede lo strumento ed è competente">{{quantityLabel}}</span>
+                                            <span class="artisan-component-row__quantity-static" title="{{localize 'ARTISAN.ToolProficiencyRollBonusTitle'}}">{{quantityLabel}}</span>
                                             <button type="button" class="artisan-icon-button" data-artisan-foraging-remove-component data-profile-id="{{profileId}}" data-collection="{{collection}}" data-index="{{index}}" title="{{localize 'ARTISAN.Remove'}}">
                                                 <i class="fa-solid fa-trash"></i>
                                             </button>
@@ -1272,16 +1272,16 @@
                             <div class="artisan-inspector__field">
                                 <label>{{localize 'ARTISAN.ActorProfession'}}</label>
                                 {{#if selectedHarvestActorProfession}}
-                                    <input type="text" value="{{selectedHarvestActorName}} — livello {{selectedHarvestActorProfession.level}}, XP {{selectedHarvestActorProfession.xp}}, prossimo livello: {{selectedHarvestActorProfession.xpToNextLevel}} XP, caccia {{selectedHarvestActorProfession.gatheringMultiplierLabel}}" disabled>
+                                    <input type="text" value="{{selectedHarvestActorProfessionSummary}}" disabled>
                                     <small>{{localize 'ARTISAN.HarvestActorLevelHelp'}}</small>
                                 {{else}}
-                                    <input type="text" value="Seleziona un token per leggere la professione dal PG" disabled>
+                                    <input type="text" value="{{selectedHarvestActorProfessionSummary}}" disabled>
                                 {{/if}}
                             </div>
 
                             <div class="artisan-inspector__field">
                                 <label>{{localize 'ARTISAN.HarvestUse'}}</label>
-                                <input type="text" value="Usa la lista selezionata sul PG attivo" disabled>
+                                <input type="text" value="{{localize 'ARTISAN.HarvestUseSelectedActor'}}" disabled>
                                 <small>{{localize 'ARTISAN.HarvestNoTargetHelp'}}</small>
                             </div>
 
@@ -1317,21 +1317,21 @@
                             </div>
 
                             <div class="artisan-inspector__field">
-                                <label>Uso strumenti</label>
+                                <label>{{localize 'ARTISAN.ToolUsage'}}</label>
                                 <select data-artisan-harvest-field="toolRequirement" data-artisan-tool-requirement-select data-current-requirement="{{selectedHarvestProfile.toolRequirement}}" data-profile-id="{{selectedHarvestProfile.id}}">
-                                    <option value="optional">Opzionali: non bloccano, danno bonus solo se competente</option>
-                                    <option value="required">Obbligatori: almeno uno deve essere posseduto</option>
+                                    <option value="optional">{{localize 'ARTISAN.ToolOptionalOption'}}</option>
+                                    <option value="required">{{localize 'ARTISAN.ToolRequiredOption'}}</option>
                                 </select>
-                                <small>Se obbligatori, la Caccia parte solo se il PG possiede almeno uno strumento della lista.</small>
+                                <small>{{localize 'ARTISAN.ToolRequiredHarvestHelp'}}</small>
                             </div>
 
                             <div class="artisan-inspector__field artisan-toggle-field">
-                                <label>Rottura strumenti</label>
+                                <label>{{localize 'ARTISAN.ToolBreakage'}}</label>
                                 <label class="artisan-checkbox-line">
                                     <input type="checkbox" data-artisan-harvest-field="toolCriticalDamage" data-profile-id="{{selectedHarvestProfile.id}}" {{#if selectedHarvestProfile.toolCriticalDamage}}checked{{/if}}>
-                                    <span>Con 1 naturale lo strumento può rompersi</span>
+                                    <span>{{localize 'ARTISAN.ToolBreakageNaturalOne'}}</span>
                                 </label>
-                                <small>Attivalo solo per cacce, prede o lavorazioni rischiose.</small>
+                                <small>{{localize 'ARTISAN.ToolBreakageHarvestHelp'}}</small>
                             </div>
 
                             <div class="artisan-inspector__field artisan-toggle-field">
@@ -1400,7 +1400,7 @@
                                             </label>
 
                                             <label class="artisan-harvest-edit-field" title="{{localize 'ARTISAN.ExtractionWeightTitle'}}">
-                                                <span>Prob.</span>
+                                                <span>{{localize 'ARTISAN.ProbabilityShort'}}</span>
                                                 <input
                                                     type="number"
                                                     min="0.1"
@@ -1490,7 +1490,7 @@
                                                 <strong>{{name}}</strong>
                                                 <code>{{uuid}}</code>
                                             </div>
-                                            <span class="artisan-component-row__quantity-static" title="Bonus alla prova applicato solo se il PG possiede lo strumento ed è competente">{{quantityLabel}}</span>
+                                            <span class="artisan-component-row__quantity-static" title="{{localize 'ARTISAN.ToolProficiencyRollBonusTitle'}}">{{quantityLabel}}</span>
                                             <button type="button" class="artisan-icon-button" data-artisan-harvest-remove-component data-profile-id="{{profileId}}" data-collection="{{collection}}" data-index="{{index}}" title="{{localize 'ARTISAN.Remove'}}">
                                                 <i class="fa-solid fa-trash"></i>
                                             </button>
@@ -1545,7 +1545,7 @@
 
                     <button type="button" class="artisan-button" data-artisan-new-disassembly-profile>
                         <i class="fa-solid fa-plus"></i>
-                        Nuova lista
+                        {{localize 'ARTISAN.NewList'}}
                     </button>
                 </div>
             </header>
@@ -1567,7 +1567,7 @@
                             <div class="artisan-inspector__header-actions">
                                 <button type="button" class="artisan-button" data-artisan-start-disassembly data-profile-id="{{selectedDisassemblyProfile.id}}">
                                     <i class="fa-solid fa-dice-d20"></i>
-                                    Dissassembla
+                                    {{localize 'ARTISAN.StartDisassembly'}}
                                 </button>
 
                                 <button type="button" class="artisan-small-button artisan-danger-button" data-artisan-delete-disassembly-profile data-profile-id="{{selectedDisassemblyProfile.id}}">
@@ -1584,13 +1584,13 @@
                             </div>
 
                             <div class="artisan-inspector__field">
-                                <label>Risorsa sorgente</label>
-                                <input type="text" value="{{selectedDisassemblyProfile.sourceUuid}}" placeholder="UUID dell'oggetto da consumare" data-artisan-disassembly-field="sourceUuid" data-profile-id="{{selectedDisassemblyProfile.id}}">
-                                <small>Trascina qui un Item dal compendio o dal mondo. Il PG deve possederlo e verrà consumato solo se la prova riesce.</small>
+                                <label>{{localize 'ARTISAN.SourceResource'}}</label>
+                                <input type="text" value="{{selectedDisassemblyProfile.sourceUuid}}" placeholder="{{localize 'ARTISAN.SourceItemUuid'}}" data-artisan-disassembly-field="sourceUuid" data-profile-id="{{selectedDisassemblyProfile.id}}">
+                                <small>{{localize 'ARTISAN.SourceResourceHelp'}}</small>
                             </div>
 
                             <div class="artisan-inspector__field">
-                                <label>Quantità sorgente consumata</label>
+                                <label>{{localize 'ARTISAN.SourceQuantityConsumed'}}</label>
                                 <input type="number" value="{{selectedDisassemblyProfile.sourceQuantity}}" min="1" step="1" data-artisan-disassembly-field="sourceQuantity" data-profile-id="{{selectedDisassemblyProfile.id}}">
                             </div>
 
@@ -1607,15 +1607,15 @@
                             <div class="artisan-inspector__field">
                                 <label>{{localize 'ARTISAN.ActorProfession'}}</label>
                                 {{#if selectedDisassemblyActorProfession}}
-                                    <input type="text" value="{{selectedDisassemblyActorName}} — livello {{selectedDisassemblyActorProfession.level}}, XP {{selectedDisassemblyActorProfession.xp}}, prossimo livello: {{selectedDisassemblyActorProfession.xpToNextLevel}} XP, moltiplicatore {{selectedDisassemblyActorProfession.gatheringMultiplierLabel}}" disabled>
+                                    <input type="text" value="{{selectedDisassemblyActorProfessionSummary}}" disabled>
                                 {{else}}
-                                    <input type="text" value="Seleziona un token per leggere la professione dal PG" disabled>
+                                    <input type="text" value="{{selectedDisassemblyActorProfessionSummary}}" disabled>
                                 {{/if}}
                             </div>
 
                             <div class="artisan-inspector__field">
                                 <label>{{localize 'ARTISAN.RollSkill'}}</label>
-                                <input type="text" value="{{selectedDisassemblyProfile.skill}}" placeholder="survival, nature, arcana..." data-artisan-disassembly-field="skill" data-profile-id="{{selectedDisassemblyProfile.id}}">
+                                <input type="text" value="{{selectedDisassemblyProfile.skill}}" placeholder="{{localize 'ARTISAN.SkillPlaceholder2'}}" data-artisan-disassembly-field="skill" data-profile-id="{{selectedDisassemblyProfile.id}}">
                             </div>
 
                             <div class="artisan-inspector__field">
@@ -1629,64 +1629,64 @@
                             </div>
 
                             <div class="artisan-inspector__field">
-                                <label>Massimo materiali diversi</label>
+                                <label>{{localize 'ARTISAN.MaxDifferentMaterials'}}</label>
                                 <input type="number" value="{{selectedDisassemblyProfile.maxResources}}" min="1" step="1" data-artisan-disassembly-field="maxResources" data-profile-id="{{selectedDisassemblyProfile.id}}">
-                                <small>Il modulo sceglie casualmente da 1 a questo numero di materiali, usando il peso/probabilità.</small>
+                                <small>{{localize 'ARTISAN.MaxDifferentMaterialsHelp'}}</small>
                             </div>
 
                             <div class="artisan-inspector__field">
-                                <label>Uso strumenti</label>
+                                <label>{{localize 'ARTISAN.ToolUsage'}}</label>
                                 <select data-artisan-disassembly-field="toolRequirement" data-artisan-tool-requirement-select data-current-requirement="{{selectedDisassemblyProfile.toolRequirement}}" data-profile-id="{{selectedDisassemblyProfile.id}}">
-                                    <option value="optional">Opzionali: non bloccano, danno bonus solo se competente</option>
-                                    <option value="required">Obbligatori: almeno uno deve essere posseduto</option>
+                                    <option value="optional">{{localize 'ARTISAN.ToolOptionalOption'}}</option>
+                                    <option value="required">{{localize 'ARTISAN.ToolRequiredOption'}}</option>
                                 </select>
-                                <small>Se obbligatori, il Dissassemblare parte solo se il PG possiede almeno uno strumento della lista.</small>
+                                <small>{{localize 'ARTISAN.ToolRequiredDisassemblyHelp'}}</small>
                             </div>
 
                             <div class="artisan-inspector__field artisan-toggle-field">
-                                <label>Rottura strumenti</label>
+                                <label>{{localize 'ARTISAN.ToolBreakage'}}</label>
                                 <label class="artisan-checkbox-line">
                                     <input type="checkbox" data-artisan-disassembly-field="toolCriticalDamage" data-profile-id="{{selectedDisassemblyProfile.id}}" {{#if selectedDisassemblyProfile.toolCriticalDamage}}checked{{/if}}>
-                                    <span>Con 1 naturale lo strumento può rompersi</span>
+                                    <span>{{localize 'ARTISAN.ToolBreakageNaturalOne'}}</span>
                                 </label>
-                                <small>Attivalo solo per dissassemblaggi complessi o rischiosi.</small>
+                                <small>{{localize 'ARTISAN.ToolBreakageDisassemblyHelp'}}</small>
                             </div>
                         </div>
 
                         <section class="artisan-harvest-panel artisan-disassembly-panel" data-artisan-disassembly-source-drop-zone data-profile-id="{{selectedDisassemblyProfile.id}}">
                             <header class="artisan-component-panel__header">
-                                <h3>Oggetto da dissassemblare</h3>
-                                <span>Trascina qui la risorsa sorgente dal compendio o dal mondo</span>
+                                <h3>{{localize 'ARTISAN.SourceItem'}}</h3>
+                                <span>{{localize 'ARTISAN.DropSourceItem'}}</span>
                             </header>
 
                             <div class="artisan-component-row {{#unless selectedDisassemblyProfile.sourceFound}}is-missing{{/unless}}">
                                 <img src="{{selectedDisassemblyProfile.sourceImg}}" alt="{{selectedDisassemblyProfile.sourceName}}">
                                 <div class="artisan-component-row__main">
-                                    <strong>{{#if selectedDisassemblyProfile.sourceName}}{{selectedDisassemblyProfile.sourceName}}{{else}}Nessuna sorgente impostata{{/if}}</strong>
+                                    <strong>{{#if selectedDisassemblyProfile.sourceName}}{{selectedDisassemblyProfile.sourceName}}{{else}}{{localize 'ARTISAN.NoSource'}}{{/if}}</strong>
                                     <code>{{selectedDisassemblyProfile.sourceUuid}}</code>
                                 </div>
-                                <span class="artisan-component-row__quantity-static">Consuma {{selectedDisassemblyProfile.sourceQuantity}}</span>
+                                <span class="artisan-component-row__quantity-static">{{localize 'ARTISAN.Consume'}} {{selectedDisassemblyProfile.sourceQuantity}}</span>
                             </div>
                         </section>
 
                         <section class="artisan-harvest-panel artisan-disassembly-panel" data-artisan-disassembly-drop-zone data-profile-id="{{selectedDisassemblyProfile.id}}" data-collection="resources">
                             <header class="artisan-component-panel__header">
-                                <h3>Materiali ottenibili</h3>
-                                <span>Trascina qui carne, pelle, ossa, componenti o altri materiali dal compendio</span>
+                                <h3>{{localize 'ARTISAN.ObtainableMaterials'}}</h3>
+                                <span>{{localize 'ARTISAN.DropObtainableMaterials'}}</span>
                             </header>
 
                             <div class="artisan-component-add artisan-harvest-resource-add">
-                                <input type="text" placeholder="UUID materiale" data-artisan-disassembly-component-uuid>
-                                <select title="Rarità di ritrovamento" data-artisan-disassembly-component-rarity>
+                                <input type="text" placeholder="{{localize 'ARTISAN.MaterialUuid'}}" data-artisan-disassembly-component-uuid>
+                                <select title="{{localize 'ARTISAN.DiscoveryRarityTitle'}}" data-artisan-disassembly-component-rarity>
                                     <option value="common">{{localize 'ARTISAN.Common'}}</option>
                                     <option value="uncommon">{{localize 'ARTISAN.Uncommon'}}</option>
                                     <option value="rare">{{localize 'ARTISAN.Rare'}}</option>
                                     <option value="veryRare">{{localize 'ARTISAN.VeryRare'}}</option>
                                     <option value="legendary">{{localize 'ARTISAN.Legendary'}}</option>
                                 </select>
-                                <input type="number" min="0.1" step="0.1" title="Peso/probabilità manuale: se vuoto usa la rarità" placeholder="Probabilità" data-artisan-disassembly-component-weight>
-                                <input type="number" min="1" step="1" value="1" title="Quantità minima" placeholder="Min" data-artisan-disassembly-component-min-quantity>
-                                <input type="number" min="1" step="1" value="1" title="Quantità massima" placeholder="Max" data-artisan-disassembly-component-max-quantity>
+                                <input type="number" min="0.1" step="0.1" title="{{localize 'ARTISAN.ManualProbabilityTitle'}}" placeholder="{{localize 'ARTISAN.Probability'}}" data-artisan-disassembly-component-weight>
+                                <input type="number" min="1" step="1" value="1" title="{{localize 'ARTISAN.MinQuantity'}}" placeholder="{{localize 'ARTISAN.Min'}}" data-artisan-disassembly-component-min-quantity>
+                                <input type="number" min="1" step="1" value="1" title="{{localize 'ARTISAN.MaxQuantity'}}" placeholder="{{localize 'ARTISAN.Max'}}" data-artisan-disassembly-component-max-quantity>
                                 <button type="button" class="artisan-small-button" data-artisan-disassembly-add-component data-profile-id="{{selectedDisassemblyProfile.id}}" data-collection="resources">
                                     <i class="fa-solid fa-plus"></i>
                                     {{localize 'ARTISAN.Add'}}
@@ -1703,7 +1703,7 @@
                                                 <code>{{uuid}}</code>
                                             </div>
 
-                                            <label class="artisan-harvest-edit-field" title="Rarità di ritrovamento">
+                                            <label class="artisan-harvest-edit-field" title="{{localize 'ARTISAN.DiscoveryRarityTitle'}}">
                                                 <span>{{localize 'ARTISAN.Rarity'}}</span>
                                                 <select
                                                     data-artisan-disassembly-rarity-select
@@ -1721,41 +1721,41 @@
                                                 </select>
                                             </label>
 
-                                            <label class="artisan-harvest-edit-field" title="Peso/probabilità manuale. La rarità aggiorna questo valore automaticamente.">
-                                                <span>Prob.</span>
+                                            <label class="artisan-harvest-edit-field" title="{{localize 'ARTISAN.ManualProbabilityAutoTitle'}}">
+                                                <span>{{localize 'ARTISAN.ProbabilityShort'}}</span>
                                                 <input type="number" min="0.1" step="0.1" value="{{weight}}" data-artisan-disassembly-component-field="weight" data-profile-id="{{profileId}}" data-collection="{{collection}}" data-index="{{index}}">
                                             </label>
 
-                                            <label class="artisan-harvest-edit-field" title="Quantità minima">
-                                                <span>Min</span>
+                                            <label class="artisan-harvest-edit-field" title="{{localize 'ARTISAN.MinQuantity'}}">
+                                                <span>{{localize 'ARTISAN.Min'}}</span>
                                                 <input type="number" min="1" step="1" value="{{minQuantity}}" data-artisan-disassembly-component-field="minQuantity" data-profile-id="{{profileId}}" data-collection="{{collection}}" data-index="{{index}}">
                                             </label>
 
-                                            <label class="artisan-harvest-edit-field" title="Quantità massima">
-                                                <span>Max</span>
+                                            <label class="artisan-harvest-edit-field" title="{{localize 'ARTISAN.MaxQuantity'}}">
+                                                <span>{{localize 'ARTISAN.Max'}}</span>
                                                 <input type="number" min="1" step="1" value="{{maxQuantity}}" data-artisan-disassembly-component-field="maxQuantity" data-profile-id="{{profileId}}" data-collection="{{collection}}" data-index="{{index}}">
                                             </label>
 
-                                            <button type="button" class="artisan-icon-button" data-artisan-disassembly-remove-component data-profile-id="{{profileId}}" data-collection="{{collection}}" data-index="{{index}}" title="Rimuovi">
+                                            <button type="button" class="artisan-icon-button" data-artisan-disassembly-remove-component data-profile-id="{{profileId}}" data-collection="{{collection}}" data-index="{{index}}" title="{{localize 'ARTISAN.Remove'}}">
                                                 <i class="fa-solid fa-trash"></i>
                                             </button>
                                         </div>
                                     {{/each}}
                                 </div>
                             {{else}}
-                                <p class="artisan-component-panel__empty">Nessun materiale configurato.</p>
+                                <p class="artisan-component-panel__empty">{{localize 'ARTISAN.NoMaterials'}}</p>
                             {{/if}}
                         </section>
 
                         <section class="artisan-harvest-panel artisan-disassembly-panel" data-artisan-disassembly-drop-zone data-profile-id="{{selectedDisassemblyProfile.id}}" data-collection="tools">
                             <header class="artisan-component-panel__header">
-                                <h3>Strumenti bonus alla prova</h3>
-                                <span>Se il PG possiede lo strumento ed è competente, aggiunge il bonus competenza alla prova.</span>
+                                <h3>{{localize 'ARTISAN.TrialBonusTools'}}</h3>
+                                <span>{{localize 'ARTISAN.ToolBonusHelp'}}</span>
                             </header>
 
                             <div class="artisan-component-add">
-                                <input type="text" placeholder="UUID strumento" data-artisan-disassembly-component-uuid>
-                                <span class="artisan-inline-note">Bonus = competenza PG</span>
+                                <input type="text" placeholder="{{localize 'ARTISAN.ToolUuid'}}" data-artisan-disassembly-component-uuid>
+                                <span class="artisan-inline-note">{{localize 'ARTISAN.RollBonusEqualsProficiency'}}</span>
                                 <button type="button" class="artisan-small-button" data-artisan-disassembly-add-component data-profile-id="{{selectedDisassemblyProfile.id}}" data-collection="tools">
                                     <i class="fa-solid fa-plus"></i>
                                     {{localize 'ARTISAN.Add'}}
@@ -1772,21 +1772,21 @@
                                                 <code>{{uuid}}</code>
                                             </div>
                                             <span class="artisan-component-row__quantity-static">{{quantityLabel}}</span>
-                                            <button type="button" class="artisan-icon-button" data-artisan-disassembly-remove-component data-profile-id="{{profileId}}" data-collection="{{collection}}" data-index="{{index}}" title="Rimuovi">
+                                            <button type="button" class="artisan-icon-button" data-artisan-disassembly-remove-component data-profile-id="{{profileId}}" data-collection="{{collection}}" data-index="{{index}}" title="{{localize 'ARTISAN.Remove'}}">
                                                 <i class="fa-solid fa-trash"></i>
                                             </button>
                                         </div>
                                     {{/each}}
                                 </div>
                             {{else}}
-                                <p class="artisan-component-panel__empty">Nessuno strumento configurato.</p>
+                                <p class="artisan-component-panel__empty">{{localize 'ARTISAN.NoTrialBonusTools'}}</p>
                             {{/if}}
                         </section>
 
                         <section class="artisan-inspector__summary">
-                            <div><strong>{{selectedDisassemblyProfile.resourceCount}}</strong><span>Materiali</span></div>
-                            <div><strong>{{selectedDisassemblyProfile.totalResourceWeight}}</strong><span>Peso totale</span></div>
-                            <div><strong>{{selectedDisassemblyProfile.maxResources}}</strong><span>Max diversi</span></div>
+                            <div><strong>{{selectedDisassemblyProfile.resourceCount}}</strong><span>{{localize 'ARTISAN.Materials'}}</span></div>
+                            <div><strong>{{selectedDisassemblyProfile.totalResourceWeight}}</strong><span>{{localize 'ARTISAN.TotalWeight'}}</span></div>
+                            <div><strong>{{selectedDisassemblyProfile.maxResources}}</strong><span>{{localize 'ARTISAN.MaxDifferent'}}</span></div>
                             <div><strong>{{selectedDisassemblyProfile.dc}}</strong><span>{{localize 'ARTISAN.DC'}}</span></div>
                         </section>
 
@@ -1794,8 +1794,8 @@
 
                         <section class="artisan-manager__empty">
                             <i class="fa-solid fa-screwdriver-wrench"></i>
-                            <h3>Nessuna lista Dissassemblare</h3>
-                            <p>Crea una lista per trasformare una risorsa sorgente in materiali casuali.</p>
+                            <h3>{{localize 'ARTISAN.NoDisassemblyList'}}</h3>
+                            <p>{{localize 'ARTISAN.CreateDisassemblyList'}}</p>
                         </section>
 
                     {{/if}}
@@ -1875,7 +1875,7 @@
                                 </label>
 
                                 <label>
-                                    <span>XP</span>
+                                    <span>{{localize 'ARTISAN.Xp'}}</span>
                                     <small>{{localize 'ARTISAN.XpLevelUpdates'}}</small>
                                     <input
                                         type="number"
@@ -1903,7 +1903,7 @@
                                     <button type="button" class="artisan-small-button" data-artisan-profession-xp-action data-action="add10" data-profession-id="{{id}}">+10 XP</button>
                                     <button type="button" class="artisan-small-button" data-artisan-profession-xp-action data-action="add50" data-profession-id="{{id}}">+50 XP</button>
                                     <button type="button" class="artisan-small-button" data-artisan-profession-xp-action data-action="next" data-profession-id="{{id}}">{{localize 'ARTISAN.NextLevel'}}</button>
-                                    <button type="button" class="artisan-small-button artisan-danger-button" data-artisan-profession-xp-action data-action="reset" data-profession-id="{{id}}">Reset XP</button>
+                                    <button type="button" class="artisan-small-button artisan-danger-button" data-artisan-profession-xp-action data-action="reset" data-profession-id="{{id}}">{{localize 'ARTISAN.ResetXp'}}</button>
                                 </div>
                             </article>
                         {{/each}}

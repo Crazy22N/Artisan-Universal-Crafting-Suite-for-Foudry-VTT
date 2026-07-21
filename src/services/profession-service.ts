@@ -447,7 +447,17 @@ export class ProfessionService {
 
     private formatMultiplier(value: number): string {
 
-        return String(value).replace(".", ",");
+        const selectedLanguage = String(
+            game.settings.get("artisan", "interfaceLanguage") ?? "system"
+        );
+
+        const locale = selectedLanguage === "system"
+            ? String(game.i18n.lang ?? navigator.language ?? "it")
+            : selectedLanguage;
+
+        return new Intl.NumberFormat(locale, {
+            maximumFractionDigits: 1
+        }).format(value);
 
     }
 

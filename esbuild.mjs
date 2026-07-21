@@ -1,10 +1,24 @@
 import { build, context } from "esbuild";
 import { cpSync, rmSync, existsSync, mkdirSync } from "node:fs";
-import { resolve } from "node:path";
+import { basename, dirname, parse, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import config from "./build.config.mjs";
 
 const isWatch = process.argv.includes("--watch");
-const outdir = resolve(config.destination);
+const projectRoot = dirname(fileURLToPath(import.meta.url));
+const outdir = resolve(projectRoot, config.destination);
+
+if (outdir === projectRoot) {
+    throw new Error("La cartella di build non può coincidere con la radice del progetto.");
+}
+
+if (basename(outdir) !== config.moduleName) {
+    throw new Error(`La cartella di build deve terminare con /${config.moduleName}.`);
+}
+
+if (dirname(outdir) === parse(outdir).root) {
+    throw new Error("La cartella di build non può trovarsi direttamente nella radice del disco.");
+}
 
 if (existsSync(outdir)) {
     rmSync(outdir, { recursive: true, force: true });
@@ -12,8 +26,10 @@ if (existsSync(outdir)) {
 mkdirSync(outdir, { recursive: true });
 
 function copy(src, dest) {
-    if (existsSync(src)) {
-        cpSync(src, dest, { recursive: true });
+    const source = resolve(projectRoot, src);
+
+    if (existsSync(source)) {
+        cpSync(source, dest, { recursive: true });
     }
 }
 
@@ -22,10 +38,13 @@ function copyStaticFiles() {
     copy("lang", `${outdir}/lang`);
     copy("styles", `${outdir}/styles`);
     copy("templates", `${outdir}/templates`);
+    copy("README.md", `${outdir}/README.md`);
+    copy("CHANGELOG.md", `${outdir}/CHANGELOG.md`);
+    copy("LICENSE", `${outdir}/LICENSE`);
 }
 
 const buildOptions = {
-    entryPoints: ["src/module.ts"],
+    entryPoints: [resolve(projectRoot, "src/module.ts")],
     bundle: true,
     outfile: `${outdir}/module.js`,
     format: "esm",

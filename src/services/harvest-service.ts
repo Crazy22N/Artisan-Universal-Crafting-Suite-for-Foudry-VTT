@@ -272,7 +272,7 @@ export class HarvestService {
                     : options.weight,
                 minQuantity: options.minQuantity,
                 maxQuantity: options.maxQuantity,
-                rarity: options.rarity,
+                rarity: this.normalizeRarity(options.rarity),
                 requiredToolUuid: options.requiredToolUuid
             });
 
@@ -1067,14 +1067,14 @@ export class HarvestService {
 
             const proficiencyBonus = this.getActorProficiencyBonus(actor);
 
-            const applied = possessed && proficient && proficiencyBonus > 0;
+            const applied = possessed && proficient && proficiencyBonus > 0 && totalBonus === 0;
 
             const quantity = applied
                 ? Math.max(0, proficiencyBonus)
                 : 0;
 
             if (applied) {
-                totalBonus += quantity;
+                totalBonus = quantity;
             }
 
             details.push({
@@ -1476,7 +1476,7 @@ export class HarvestService {
         sourceName: string
     ): Item | null {
 
-        return actor.items.find(item => {
+        return actor.items.find((item: Item) => {
             const flagUuid = item.getFlag("artisan", "sourceUuid");
 
             if (flagUuid === sourceUuid) {

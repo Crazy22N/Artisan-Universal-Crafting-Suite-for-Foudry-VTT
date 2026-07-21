@@ -2,7 +2,7 @@ export class ItemService {
 
     public async getOrCreateRecipeFolder(): Promise<Folder> {
 
-        let folder = game.folders.find(folder =>
+        let folder = game.folders.find((folder: Folder) =>
             folder.type === "Item" &&
             folder.name === "Artisan Recipes"
         );

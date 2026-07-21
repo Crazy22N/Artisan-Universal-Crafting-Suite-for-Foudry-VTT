@@ -1,16 +1,20 @@
 {
   "name": "artisan",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Artisan - Crafting, gathering, hunting, disassembly and profession progression for Foundry VTT",
   "private": true,
   "type": "module",
   "author": "Crazy",
   "license": "MIT",
   "scripts": {
-    "build": "node esbuild.mjs",
-    "watch": "node esbuild.mjs --watch"
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && node esbuild.mjs && npm run validate",
+    "watch": "node esbuild.mjs --watch",
+    "validate": "node scripts/validate.mjs",
+    "release": "npm run build && node scripts/release.mjs"
   },
   "devDependencies": {
+    "adm-zip": "^0.6.0",
     "esbuild": "^0.25.0",
     "typescript": "^5.8.3"
   }

@@ -615,7 +615,10 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
         return;
       }
 
-      if (target.matches("[data-artisan-component-row-quantity]")) {
+      if (
+        target instanceof HTMLInputElement &&
+        target.matches("[data-artisan-component-row-quantity]")
+      ) {
         void this.onComponentQuantityChanged(target);
         return;
       }
@@ -650,7 +653,10 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
         return;
       }
 
-      if (target.matches("[data-artisan-actor-profession-field]")) {
+      if (
+        target instanceof HTMLInputElement &&
+        target.matches("[data-artisan-actor-profession-field]")
+      ) {
         void this.onActorProfessionFieldChanged(target);
         return;
       }
@@ -2221,7 +2227,9 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.renderPreservingUiState();
   }
 
-  private async onRecipeFieldChanged(target: HTMLInputElement): Promise<void> {
+  private async onRecipeFieldChanged(
+    target: HTMLInputElement | HTMLSelectElement,
+  ): Promise<void> {
     const recipeId = target.dataset.recipeId;
 
     const field = target.dataset.artisanField;
@@ -2409,6 +2417,7 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
   private onExportBackupClicked(): void {
     const foragingService = new ForagingService();
     const harvestService = new HarvestService();
+    const disassemblyService = new DisassemblyService();
 
     const recipes = game.items
       .filter((item: Item) => item.getFlag("artisan", "type") === "recipe")
@@ -2440,11 +2449,13 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
         recipes: recipes.length,
         foragingProfiles: foragingService.getProfiles().length,
         harvestProfiles: harvestService.getProfiles().length,
+        disassemblyProfiles: disassemblyService.getProfiles().length,
         actorProfessions: actorProfessions.length,
       },
       recipes,
       foragingProfiles: foragingService.getProfiles(),
       harvestProfiles: harvestService.getProfiles(),
+      disassemblyProfiles: disassemblyService.getProfiles(),
       actorProfessions,
     };
 
@@ -2507,6 +2518,11 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
         profiles: payload.harvestProfiles ?? [],
       });
 
+      const disassemblyService = new DisassemblyService();
+      const disassemblyResult = await disassemblyService.importProfiles({
+        profiles: payload.disassemblyProfiles ?? [],
+      });
+
       const actorResult = await this.importActorProfessionBackups(
         payload.actorProfessions ?? [],
       );
@@ -2515,12 +2531,13 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
         `Backup importato: ricette ${recipeResult.imported}/${recipeResult.skipped}, ` +
         `Raccolta ${foragingResult.imported}/${foragingResult.skipped}, ` +
         `Caccia ${harvestResult.imported}/${harvestResult.skipped}, ` +
+        `Dissassemblare ${disassemblyResult.imported}/${disassemblyResult.skipped}, ` +
         `professioni PG ${actorResult.imported}/${actorResult.skipped}.`,
       );
       void this.addActivityLogEntry(
         "backup",
         "Backup Artisan importato",
-        `Ricette importate ${recipeResult.imported}, Raccolta ${foragingResult.imported}, Caccia ${harvestResult.imported}, professioni PG ${actorResult.imported}.`,
+        `Ricette importate ${recipeResult.imported}, Raccolta ${foragingResult.imported}, Caccia ${harvestResult.imported}, Dissassemblare ${disassemblyResult.imported}, professioni PG ${actorResult.imported}.`,
       );
 
       this.renderPreservingUiState();
