@@ -2491,7 +2491,8 @@
     background: rgba(0, 0, 0, 0.10);
 }
 
-.artisan-quality-compact__formula label {
+.artisan-quality-compact__formula label,
+.artisan-quality-compact__mode label {
     display: grid !important;
     grid-template-columns: 150px minmax(0, 1fr);
     gap: 8px;
@@ -2500,6 +2501,7 @@
 }
 
 .artisan-quality-compact__formula span,
+.artisan-quality-compact__mode span,
 .artisan-quality-compact__cell span {
     font-size: 10px !important;
     font-weight: 800 !important;
@@ -2508,7 +2510,8 @@
     opacity: 0.72 !important;
 }
 
-.artisan-quality-compact__formula small {
+.artisan-quality-compact__formula small,
+.artisan-quality-compact__mode small {
     margin: 0 !important;
     line-height: 1.28 !important;
 }
@@ -2521,7 +2524,7 @@
 
 .artisan-quality-compact__row {
     display: grid;
-    grid-template-columns: 105px 90px 110px minmax(190px, 1fr);
+    grid-template-columns: 98px 72px 80px 100px minmax(170px, 1fr);
     gap: 8px;
     align-items: end;
     padding: 8px;
@@ -2563,7 +2566,8 @@
 
 .artisan-quality-compact__cell input,
 .artisan-quality-compact__cell select,
-.artisan-quality-compact__formula input {
+.artisan-quality-compact__formula input,
+.artisan-quality-compact__mode select {
     min-width: 0 !important;
     height: 30px !important;
     padding: 4px 7px !important;
@@ -2588,13 +2592,14 @@
         max-width: none;
     }
 
-    .artisan-quality-compact__formula {
+    .artisan-quality-compact__formula,
+    .artisan-quality-compact__mode {
         grid-template-columns: 1fr;
     }
 
     .artisan-quality-compact__row,
     .artisan-quality-compact__row--head {
-        grid-template-columns: 90px 78px 96px minmax(150px, 1fr);
+        grid-template-columns: 86px 68px 72px 92px minmax(140px, 1fr);
     }
 }
 
@@ -2613,7 +2618,8 @@
         grid-column: 1 / -1;
     }
 
-    .artisan-quality-compact__formula label {
+    .artisan-quality-compact__formula label,
+.artisan-quality-compact__mode label {
         grid-template-columns: 1fr;
     }
 }

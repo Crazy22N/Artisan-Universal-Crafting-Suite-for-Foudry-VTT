@@ -1406,22 +1406,22 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
 
   private getForagingPresetProfiles(): any[] {
     return [
-      { name: "Raccolta — Foresta", biome: "foresta", profession: "erborista", skill: "nature", dc: 12, time: 60, maxResources: 3, resources: [], tools: [] },
-      { name: "Raccolta — Montagna", biome: "montagna", profession: "minatore", skill: "athletics", dc: 14, time: 90, maxResources: 3, resources: [], tools: [] },
-      { name: "Raccolta — Palude", biome: "palude", profession: "erborista", skill: "nature", dc: 15, time: 90, maxResources: 3, resources: [], tools: [] },
-      { name: "Raccolta — Costa", biome: "costa", profession: "cacciatore", skill: "survival", dc: 12, time: 60, maxResources: 3, resources: [], tools: [] },
-      { name: "Raccolta — Caverna", biome: "caverna", profession: "minatore", skill: "perception", dc: 15, time: 120, maxResources: 2, resources: [], tools: [] },
-      { name: "Raccolta — Deserto", biome: "deserto", profession: "cacciatore", skill: "survival", dc: 16, time: 120, maxResources: 2, resources: [], tools: [] },
+      { name: "Raccolta — Foresta", biome: "foresta", profession: "erborista", skill: "nature", dc: 12, time: 1, maxResources: 3, resources: [], tools: [] },
+      { name: "Raccolta — Montagna", biome: "montagna", profession: "minatore", skill: "athletics", dc: 14, time: 1.5, maxResources: 3, resources: [], tools: [] },
+      { name: "Raccolta — Palude", biome: "palude", profession: "erborista", skill: "nature", dc: 15, time: 1.5, maxResources: 3, resources: [], tools: [] },
+      { name: "Raccolta — Costa", biome: "costa", profession: "cacciatore", skill: "survival", dc: 12, time: 1, maxResources: 3, resources: [], tools: [] },
+      { name: "Raccolta — Caverna", biome: "caverna", profession: "minatore", skill: "perception", dc: 15, time: 2, maxResources: 2, resources: [], tools: [] },
+      { name: "Raccolta — Deserto", biome: "deserto", profession: "cacciatore", skill: "survival", dc: 16, time: 2, maxResources: 2, resources: [], tools: [] },
     ];
   }
 
   private getHarvestPresetProfiles(): any[] {
     return [
-      { name: "Caccia — Bestie", creatureType: "beast", profession: "cacciatore", skill: "survival", dc: 12, time: 30, maxResources: 3, toolRequirement: "optional", toolCriticalDamage: false, resources: [], tools: [] },
-      { name: "Caccia — Draghi", creatureType: "dragon", profession: "conciatore", skill: "survival", dc: 18, time: 120, maxResources: 3, toolRequirement: "required", toolCriticalDamage: true, resources: [], tools: [] },
-      { name: "Caccia — Non morti", creatureType: "undead", profession: "alchimista", skill: "arcana", dc: 15, time: 60, maxResources: 2, toolRequirement: "optional", toolCriticalDamage: false, resources: [], tools: [] },
-      { name: "Caccia — Mostruosità", creatureType: "monstrosity", profession: "cacciatore", skill: "survival", dc: 16, time: 90, maxResources: 3, toolRequirement: "optional", toolCriticalDamage: false, resources: [], tools: [] },
-      { name: "Caccia — Vegetali", creatureType: "plant", profession: "erborista", skill: "nature", dc: 13, time: 45, maxResources: 3, toolRequirement: "optional", toolCriticalDamage: false, resources: [], tools: [] },
+      { name: "Caccia — Bestie", creatureType: "beast", profession: "cacciatore", skill: "survival", dc: 12, time: 0.5, maxResources: 3, toolRequirement: "optional", toolCriticalDamage: false, resources: [], tools: [] },
+      { name: "Caccia — Draghi", creatureType: "dragon", profession: "conciatore", skill: "survival", dc: 18, time: 2, maxResources: 3, toolRequirement: "required", toolCriticalDamage: true, resources: [], tools: [] },
+      { name: "Caccia — Non morti", creatureType: "undead", profession: "alchimista", skill: "arcana", dc: 15, time: 1, maxResources: 2, toolRequirement: "optional", toolCriticalDamage: false, resources: [], tools: [] },
+      { name: "Caccia — Mostruosità", creatureType: "monstrosity", profession: "cacciatore", skill: "survival", dc: 16, time: 1.5, maxResources: 3, toolRequirement: "optional", toolCriticalDamage: false, resources: [], tools: [] },
+      { name: "Caccia — Vegetali", creatureType: "plant", profession: "erborista", skill: "nature", dc: 13, time: 0.75, maxResources: 3, toolRequirement: "optional", toolCriticalDamage: false, resources: [], tools: [] },
     ];
   }
 
@@ -1467,14 +1467,14 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
 
   private getRecipePresetTemplates(): any[] {
     return [
-      { name: "Template — Pozione alchemica", category: "Alchimia", profession: "alchimista", professionLevel: 1, skill: "arcana", dc: 12, time: 60, craftingXp: 25, qualityBonusGood: 1, qualityBonusSuperior: 2, qualityBonusExcellent: 3, qualityDiceGood: "", qualityDiceSuperior: "1d4", qualityDiceExcellent: "1d6", qualityEffectGood: "healing", qualityEffectSuperior: "healing", qualityEffectExcellent: "healing" },
-      { name: "Template — Arma semplice", category: "Forgiatura", profession: "fabbro", professionLevel: 1, skill: "athletics", dc: 12, time: 120, craftingXp: 10 },
-      { name: "Template — Armatura rinforzata", category: "Forgiatura", profession: "fabbro", professionLevel: 2, skill: "athletics", dc: 15, time: 240, craftingXp: 20 },
-      { name: "Template — Pasto da viaggio", category: "Cucina", profession: "cuoco", professionLevel: 0, skill: "survival", dc: 10, time: 30, craftingXp: 3 },
-      { name: "Template — Preparato erboristico", category: "Erboristeria", profession: "erborista", professionLevel: 1, skill: "nature", dc: 12, time: 45, craftingXp: 8 },
-      { name: "Template — Pelle lavorata", category: "Conciatura", profession: "conciatore", professionLevel: 1, skill: "survival", dc: 12, time: 90, craftingXp: 8 },
-      { name: "Template — Attrezzo semplice", category: "Artigianato", profession: "artigiano", professionLevel: 0, skill: "sleightOfHand", dc: 10, time: 60, craftingXp: 5 },
-      { name: "Template — Abito rinforzato", category: "Sartoria", profession: "sarto", professionLevel: 1, skill: "sleightOfHand", dc: 12, time: 90, craftingXp: 8 },
+      { name: "Template — Pozione alchemica", category: "Alchimia", profession: "alchimista", professionLevel: 1, skill: "arcana", dc: 12, time: 1, craftingXp: 25, qualityBonusGood: 1, qualityBonusSuperior: 2, qualityBonusExcellent: 3, qualityDiceGood: "", qualityDiceSuperior: "1d4", qualityDiceExcellent: "1d6", qualityEffectGood: "healing", qualityEffectSuperior: "healing", qualityEffectExcellent: "healing" },
+      { name: "Template — Arma semplice", category: "Forgiatura", profession: "fabbro", professionLevel: 1, skill: "athletics", dc: 12, time: 2, craftingXp: 10 },
+      { name: "Template — Armatura rinforzata", category: "Forgiatura", profession: "fabbro", professionLevel: 2, skill: "athletics", dc: 15, time: 4, craftingXp: 20 },
+      { name: "Template — Pasto da viaggio", category: "Cucina", profession: "cuoco", professionLevel: 0, skill: "survival", dc: 10, time: 0.5, craftingXp: 3 },
+      { name: "Template — Preparato erboristico", category: "Erboristeria", profession: "erborista", professionLevel: 1, skill: "nature", dc: 12, time: 0.75, craftingXp: 8 },
+      { name: "Template — Pelle lavorata", category: "Conciatura", profession: "conciatore", professionLevel: 1, skill: "survival", dc: 12, time: 1.5, craftingXp: 8 },
+      { name: "Template — Attrezzo semplice", category: "Artigianato", profession: "artigiano", professionLevel: 0, skill: "sleightOfHand", dc: 10, time: 1, craftingXp: 5 },
+      { name: "Template — Abito rinforzato", category: "Sartoria", profession: "sarto", professionLevel: 1, skill: "sleightOfHand", dc: 12, time: 1.5, craftingXp: 8 },
     ];
   }
 
@@ -2675,6 +2675,10 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
       consumeCurrencyOnFailure: Boolean(recipe.consumeCurrencyOnFailure ?? false),
       toolRequirement: String(recipe.toolRequirement ?? "optional") === "required" ? "required" : "optional",
       toolCriticalDamage: Boolean(recipe.toolCriticalDamage ?? false),
+      qualityMode: this.normalizeRecipeQualityMode(recipe.qualityMode ?? "margin"),
+      qualityChanceGood: this.normalizeRecipePercent(recipe.qualityChanceGood ?? 0),
+      qualityChanceSuperior: this.normalizeRecipePercent(recipe.qualityChanceSuperior ?? 0),
+      qualityChanceExcellent: this.normalizeRecipePercent(recipe.qualityChanceExcellent ?? 0),
       qualityFormulaPath: String(recipe.qualityFormulaPath ?? ""),
       qualityBonusGood: Math.max(0, Math.floor(Number(recipe.qualityBonusGood ?? 0))),
       qualityBonusSuperior: Math.max(0, Math.floor(Number(recipe.qualityBonusSuperior ?? 0))),
@@ -2703,6 +2707,22 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
         },
       },
     };
+  }
+
+
+  private normalizeRecipeQualityMode(value: unknown): string {
+    const raw = String(value ?? "margin").trim().toLowerCase();
+    return ["normal", "margin", "chance"].includes(raw) ? raw : "margin";
+  }
+
+  private normalizeRecipePercent(value: unknown): number {
+    const numeric = Number(value ?? 0);
+
+    if (!Number.isFinite(numeric)) {
+      return 0;
+    }
+
+    return Math.max(0, Math.min(100, Math.floor(numeric)));
   }
 
   private normalizeRecipeCurrencyDenomination(value: unknown): string {
@@ -2923,8 +2943,15 @@ export class ArtisanManager extends HandlebarsApplicationMixin(ApplicationV2) {
             dc: Number(data.dc ?? 10),
             craftingTime: Number(data.craftingTime ?? 0),
             craftingXp: Math.max(0, Math.floor(Number(data.craftingXp ?? 0))),
+            currencyCost: Math.max(0, Number(data.currencyCost ?? data.goldCost ?? 0)),
+            currencyDenomination: this.normalizeRecipeCurrencyDenomination(data.currencyDenomination ?? data.currency ?? "gp"),
+            consumeCurrencyOnFailure: Boolean(data.consumeCurrencyOnFailure ?? false),
             toolRequirement: String(data.toolRequirement ?? "optional") === "required" ? "required" : "optional",
             toolCriticalDamage: Boolean((data as any).toolCriticalDamage ?? false),
+            qualityMode: this.normalizeRecipeQualityMode(data.qualityMode ?? "margin"),
+            qualityChanceGood: this.normalizeRecipePercent(data.qualityChanceGood ?? 0),
+            qualityChanceSuperior: this.normalizeRecipePercent(data.qualityChanceSuperior ?? 0),
+            qualityChanceExcellent: this.normalizeRecipePercent(data.qualityChanceExcellent ?? 0),
             qualityFormulaPath: String(data.qualityFormulaPath ?? ""),
             qualityBonusGood: Math.max(0, Math.floor(Number(data.qualityBonusGood ?? 0))),
             qualityBonusSuperior: Math.max(0, Math.floor(Number(data.qualityBonusSuperior ?? 0))),

@@ -3,31 +3,29 @@
 Tutte le modifiche rilevanti di Artisan sono documentate in questo file.  
 All notable changes to Artisan are documented in this file.
 
-## [1.2.0] - 2026-07-15
+## [1.2.2] - 2026-07-21
 
 ### Italiano
 
-- Promossa la versione stabile dalla serie 1.1.x a **1.2.0**.
-- Mantenute le funzioni stabili di Creazione, Raccolta, Caccia e Dissassemblare.
-- Aggiunto costo monetario nelle ricette con scelta per singola ricetta se consumarlo anche in caso di fallimento.
-- Confermato il requisito opzionale della copia della ricetta nell'inventario del PG per poter creare.
-- Confermata la lista ufficiale professioni: Erborista, Alchimista, Fabbro, Cacciatore, Conciatore, Cuoco, Minatore, Boscaiolo, Artigiano e Sarto.
-- Rimossa la meccanica separata di rischio rovina dalla Caccia: la rarità delle ricompense gestisce la probabilità di ottenimento.
-- Conservata la posizione di scroll della finestra dopo clic, salvataggi e aggiornamenti.
-- Migliorata e riscritta la documentazione bilingue italiana/inglese.
-- Ripulita la cronologia delle note locali e dei riferimenti di test.
+- Aggiornato il manifest per Foundry VTT v14.365.
+- Il tempo di Creazione, Raccolta, Caccia e Dissassemblare è ora espresso in ore invece che in minuti.
+- I campi tempo supportano valori decimali, per esempio 0.5 per mezz'ora e 1.5 per un'ora e mezza.
+- Aggiunta alla ricetta la modalità **Qualità risultato**.
+- Ogni ricetta può produrre: sempre qualità Normale, qualità basata sul margine del tiro, oppure qualità tramite probabilità personalizzate.
+- Aggiunte percentuali per Buona, Superiore ed Eccellente.
+- Le ricette esistenti mantengono il comportamento precedente basato sul margine del tiro.
+- Esportazione/importazione ricette aggiornata con i nuovi campi qualità.
 
 ### English
 
-- Promoted the stable build from the 1.1.x series to **1.2.0**.
-- Preserved stable Crafting, Gathering, Hunting and Disassembly features.
-- Added recipe monetary cost with a per-recipe option to consume the cost on failure.
-- Confirmed the optional requirement that the character must own a copy of the recipe to craft it.
-- Confirmed the official profession list: Herbalist, Alchemist, Blacksmith, Hunter, Tanner, Cook, Miner, Woodcutter, Artisan and Tailor.
-- Removed the separate Hunting spoilage mechanic: reward rarity now controls obtainment probability.
-- Preserved window scroll position after clicks, saves and updates.
-- Improved and rewrote bilingual Italian/English documentation.
-- Cleaned local-test notes and outdated references.
+- Updated the manifest for Foundry VTT v14.365.
+- Crafting, Gathering, Hunting and Disassembly time is now expressed in hours instead of minutes.
+- Time fields support decimal values, for example 0.5 for half an hour and 1.5 for one and a half hours.
+- Added a per-recipe **Result quality** mode.
+- Each recipe can now produce: always Normal quality, roll-margin-based quality, or custom chance-based quality.
+- Added percentage fields for Good, Superior and Excellent quality.
+- Existing recipes keep the previous roll-margin behavior.
+- Recipe import/export updated with the new quality fields.
 
 ## [1.1.29] - 2026-07-15
 

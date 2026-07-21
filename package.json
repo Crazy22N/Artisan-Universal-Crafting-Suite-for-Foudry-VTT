@@ -1,6 +1,6 @@
 {
   "name": "artisan",
-  "version": "1.2.0",
+  "version": "1.2.2",
   "description": "Artisan - Crafting, gathering, hunting, disassembly and profession progression for Foundry VTT",
   "private": true,
   "type": "module",

@@ -376,12 +376,12 @@
                         </div>
 
                         <div class="artisan-inspector__field">
-                            <label>{{localize 'ARTISAN.TimeMinutes'}}</label>
+                            <label>{{localize 'ARTISAN.TimeHours'}}</label>
                             <input
                                 type="number"
                                 value="{{selectedRecipe.craftingTime}}"
                                 min="0"
-                                step="1"
+                                step="0.25"
                                 data-artisan-field="craftingTime"
                                 data-recipe-id="{{selectedRecipe.id}}"
                             >
@@ -443,6 +443,21 @@
                                 <small>{{localize 'ARTISAN.QualityBonusHelp'}}</small>
                             </div>
 
+                            <div class="artisan-quality-compact__mode">
+                                <label>
+                                    <span>{{localize 'ARTISAN.QualityMode'}}</span>
+                                    <select
+                                        data-artisan-field="qualityMode"
+                                        data-recipe-id="{{selectedRecipe.id}}"
+                                    >
+                                        <option value="margin" {{#if (eq selectedRecipe.qualityMode "margin")}}selected{{/if}}>{{localize 'ARTISAN.QualityModeMargin'}}</option>
+                                        <option value="normal" {{#if (eq selectedRecipe.qualityMode "normal")}}selected{{/if}}>{{localize 'ARTISAN.QualityModeNormal'}}</option>
+                                        <option value="chance" {{#if (eq selectedRecipe.qualityMode "chance")}}selected{{/if}}>{{localize 'ARTISAN.QualityModeChance'}}</option>
+                                    </select>
+                                </label>
+                                <small>{{localize 'ARTISAN.QualityModeHelp'}}</small>
+                            </div>
+
                             <div class="artisan-quality-compact__formula">
                                 <label>
                                     <span>{{localize 'ARTISAN.QualityFormulaPath'}}</span>
@@ -460,12 +475,25 @@
                             <div class="artisan-quality-compact__table">
                                 <div class="artisan-quality-compact__row artisan-quality-compact__row--head">
                                     <span>{{localize 'ARTISAN.QualityTier'}}</span>
+                                    <span>{{localize 'ARTISAN.QualityChance'}}</span>
                                     <span>{{localize 'ARTISAN.QualityFlatBonus'}}</span>
                                     <span>{{localize 'ARTISAN.QualityDice'}}</span>
                                     <span>{{localize 'ARTISAN.QualityEffectType'}}</span>
                                 </div>
                             <div class="artisan-quality-compact__row">
                                 <div class="artisan-quality-compact__tier">{{localize 'ARTISAN.QualityTierGood'}}</div>
+                                <label class="artisan-quality-compact__cell">
+                                    <span>{{localize 'ARTISAN.QualityChance'}}</span>
+                                    <input
+                                        type="number"
+                                        value="{{selectedRecipe.qualityChanceGood}}"
+                                        min="0"
+                                        max="100"
+                                        step="1"
+                                        data-artisan-field="qualityChanceGood"
+                                        data-recipe-id="{{selectedRecipe.id}}"
+                                    >
+                                </label>
                                 <label class="artisan-quality-compact__cell">
                                     <span>{{localize 'ARTISAN.QualityFlatBonus'}}</span>
                                     <input
@@ -516,6 +544,18 @@
                             <div class="artisan-quality-compact__row">
                                 <div class="artisan-quality-compact__tier">{{localize 'ARTISAN.QualityTierSuperior'}}</div>
                                 <label class="artisan-quality-compact__cell">
+                                    <span>{{localize 'ARTISAN.QualityChance'}}</span>
+                                    <input
+                                        type="number"
+                                        value="{{selectedRecipe.qualityChanceSuperior}}"
+                                        min="0"
+                                        max="100"
+                                        step="1"
+                                        data-artisan-field="qualityChanceSuperior"
+                                        data-recipe-id="{{selectedRecipe.id}}"
+                                    >
+                                </label>
+                                <label class="artisan-quality-compact__cell">
                                     <span>{{localize 'ARTISAN.QualityFlatBonus'}}</span>
                                     <input
                                         type="number"
@@ -564,6 +604,18 @@
                             </div>
                             <div class="artisan-quality-compact__row">
                                 <div class="artisan-quality-compact__tier">{{localize 'ARTISAN.QualityTierExcellent'}}</div>
+                                <label class="artisan-quality-compact__cell">
+                                    <span>{{localize 'ARTISAN.QualityChance'}}</span>
+                                    <input
+                                        type="number"
+                                        value="{{selectedRecipe.qualityChanceExcellent}}"
+                                        min="0"
+                                        max="100"
+                                        step="1"
+                                        data-artisan-field="qualityChanceExcellent"
+                                        data-recipe-id="{{selectedRecipe.id}}"
+                                    >
+                                </label>
                                 <label class="artisan-quality-compact__cell">
                                     <span>{{localize 'ARTISAN.QualityFlatBonus'}}</span>
                                     <input
@@ -927,8 +979,8 @@
                             </div>
 
                             <div class="artisan-inspector__field">
-                                <label>{{localize 'ARTISAN.TimeMinutes'}}</label>
-                                <input type="number" value="{{selectedForagingProfile.time}}" min="0" step="1" data-artisan-foraging-field="time" data-profile-id="{{selectedForagingProfile.id}}">
+                                <label>{{localize 'ARTISAN.TimeHours'}}</label>
+                                <input type="number" value="{{selectedForagingProfile.time}}" min="0" step="0.25" data-artisan-foraging-field="time" data-profile-id="{{selectedForagingProfile.id}}">
                             </div>
 
                             <div class="artisan-inspector__field">
@@ -1244,8 +1296,8 @@
                             </div>
 
                             <div class="artisan-inspector__field">
-                                <label>{{localize 'ARTISAN.TimeMinutes'}}</label>
-                                <input type="number" value="{{selectedHarvestProfile.time}}" min="0" step="1" data-artisan-harvest-field="time" data-profile-id="{{selectedHarvestProfile.id}}">
+                                <label>{{localize 'ARTISAN.TimeHours'}}</label>
+                                <input type="number" value="{{selectedHarvestProfile.time}}" min="0" step="0.25" data-artisan-harvest-field="time" data-profile-id="{{selectedHarvestProfile.id}}">
                             </div>
 
                             <div class="artisan-inspector__field">
@@ -1572,8 +1624,8 @@
                             </div>
 
                             <div class="artisan-inspector__field">
-                                <label>{{localize 'ARTISAN.TimeMinutes'}}</label>
-                                <input type="number" value="{{selectedDisassemblyProfile.time}}" min="0" step="1" data-artisan-disassembly-field="time" data-profile-id="{{selectedDisassemblyProfile.id}}">
+                                <label>{{localize 'ARTISAN.TimeHours'}}</label>
+                                <input type="number" value="{{selectedDisassemblyProfile.time}}" min="0" step="0.25" data-artisan-disassembly-field="time" data-profile-id="{{selectedDisassemblyProfile.id}}">
                             </div>
 
                             <div class="artisan-inspector__field">

@@ -19,6 +19,10 @@ var RecipeDocument = class {
       consumeCurrencyOnFailure: false,
       toolRequirement: "optional",
       toolCriticalDamage: false,
+      qualityMode: "margin",
+      qualityChanceGood: 0,
+      qualityChanceSuperior: 0,
+      qualityChanceExcellent: 0,
       qualityFormulaPath: "",
       qualityBonusGood: 0,
       qualityBonusSuperior: 0,
@@ -49,13 +53,17 @@ var RecipeDocument = class {
       category: String(merged.category ?? ""),
       profile: String(merged.profile ?? ""),
       difficulty: Number(merged.difficulty ?? 0),
-      craftingTime: Math.max(0, Math.floor(Number(merged.craftingTime ?? 0))),
+      craftingTime: Math.max(0, Number(merged.craftingTime ?? 0)),
       craftingXp: Math.max(0, Math.floor(Number(merged.craftingXp ?? merged.xp ?? 0))),
       currencyCost: Math.max(0, Number(merged.currencyCost ?? merged.goldCost ?? 0)),
       currencyDenomination: this.normalizeCurrencyDenomination(merged.currencyDenomination ?? merged.currency ?? "gp"),
       consumeCurrencyOnFailure: Boolean(merged.consumeCurrencyOnFailure ?? false),
       toolRequirement: String(merged.toolRequirement || "optional") === "required" ? "required" : "optional",
       toolCriticalDamage: Boolean(merged.toolCriticalDamage ?? false),
+      qualityMode: this.normalizeQualityMode(merged.qualityMode ?? "margin"),
+      qualityChanceGood: this.normalizePercent(merged.qualityChanceGood ?? 0),
+      qualityChanceSuperior: this.normalizePercent(merged.qualityChanceSuperior ?? 0),
+      qualityChanceExcellent: this.normalizePercent(merged.qualityChanceExcellent ?? 0),
       qualityFormulaPath: String(merged.qualityFormulaPath ?? ""),
       qualityBonusGood: Math.max(0, Math.floor(Number(merged.qualityBonusGood ?? 0))),
       qualityBonusSuperior: Math.max(0, Math.floor(Number(merged.qualityBonusSuperior ?? 0))),
@@ -193,6 +201,11 @@ var RecipeDocument = class {
       currencyDenomination: recipe.currencyDenomination,
       consumeCurrencyOnFailure: recipe.consumeCurrencyOnFailure,
       toolRequirement: recipe.toolRequirement,
+      toolCriticalDamage: recipe.toolCriticalDamage,
+      qualityMode: recipe.qualityMode,
+      qualityChanceGood: recipe.qualityChanceGood,
+      qualityChanceSuperior: recipe.qualityChanceSuperior,
+      qualityChanceExcellent: recipe.qualityChanceExcellent,
       qualityFormulaPath: recipe.qualityFormulaPath,
       qualityBonusGood: recipe.qualityBonusGood,
       qualityBonusSuperior: recipe.qualityBonusSuperior,
@@ -212,6 +225,20 @@ var RecipeDocument = class {
       toolCount: tools.length,
       outputCount: outputs.length
     };
+  }
+  static normalizeQualityMode(value) {
+    const raw = String(value ?? "margin").trim().toLowerCase();
+    if (["normal", "margin", "chance"].includes(raw)) {
+      return raw;
+    }
+    return "margin";
+  }
+  static normalizePercent(value) {
+    const numeric = Number(value ?? 0);
+    if (!Number.isFinite(numeric)) {
+      return 0;
+    }
+    return Math.max(0, Math.min(100, Math.floor(numeric)));
   }
   static normalizeCurrencyDenomination(value) {
     const raw = String(value ?? "gp").trim().toLowerCase();
@@ -781,7 +808,10 @@ var CraftingService = class {
     if (roll.criticalFailure && criticalFailureToolDamageEnabled) {
       await this.destroyTools(context);
     }
-    const outputQuality = this.getCraftingOutputQuality(roll);
+    const outputQuality = this.getCraftingOutputQuality(
+      validation.recipeData,
+      roll
+    );
     if (roll.success) {
       await this.createOutputs(
         context,
@@ -1663,7 +1693,7 @@ var CraftingService = class {
       outcomeLabel
     };
   }
-  getCraftingOutputQuality(roll) {
+  getCraftingOutputQuality(recipe, roll) {
     if (!roll.success) {
       return {
         key: "none",
@@ -1676,6 +1706,18 @@ var CraftingService = class {
       0,
       Number(roll.total ?? 0) - Number(roll.dc ?? 0)
     );
+    const mode = this.normalizeQualityMode(recipe.qualityMode ?? "margin");
+    if (mode === "normal") {
+      return {
+        key: "normal",
+        label: "Normale",
+        margin,
+        description: "La ricetta produce sempre qualit\xE0 normale."
+      };
+    }
+    if (mode === "chance") {
+      return this.rollChanceBasedOutputQuality(recipe, margin);
+    }
     if (roll.criticalSuccess) {
       return {
         key: "excellent",
@@ -1706,6 +1748,59 @@ var CraftingService = class {
       margin,
       description: "Successo normale."
     };
+  }
+  rollChanceBasedOutputQuality(recipe, margin) {
+    const goodChance = this.normalizePercent(recipe.qualityChanceGood ?? 0);
+    const superiorChance = this.normalizePercent(recipe.qualityChanceSuperior ?? 0);
+    const excellentChance = this.normalizePercent(recipe.qualityChanceExcellent ?? 0);
+    const roll = Math.ceil(Math.random() * 100);
+    let threshold = excellentChance;
+    if (roll <= threshold) {
+      return {
+        key: "excellent",
+        label: "Eccellente",
+        margin,
+        description: `Qualit\xE0 casuale: ${roll}/100 entro ${excellentChance}% eccellente.`
+      };
+    }
+    threshold += superiorChance;
+    if (roll <= threshold) {
+      return {
+        key: "superior",
+        label: "Superiore",
+        margin,
+        description: `Qualit\xE0 casuale: ${roll}/100 entro ${superiorChance}% superiore.`
+      };
+    }
+    threshold += goodChance;
+    if (roll <= threshold) {
+      return {
+        key: "good",
+        label: "Buona",
+        margin,
+        description: `Qualit\xE0 casuale: ${roll}/100 entro ${goodChance}% buona.`
+      };
+    }
+    return {
+      key: "normal",
+      label: "Normale",
+      margin,
+      description: `Qualit\xE0 casuale: ${roll}/100, nessuna qualit\xE0 speciale ottenuta.`
+    };
+  }
+  normalizeQualityMode(value) {
+    const raw = String(value ?? "margin").trim().toLowerCase();
+    if (raw === "normal" || raw === "chance" || raw === "margin") {
+      return raw;
+    }
+    return "margin";
+  }
+  normalizePercent(value) {
+    const numeric = Number(value ?? 0);
+    if (!Number.isFinite(numeric)) {
+      return 0;
+    }
+    return Math.max(0, Math.min(100, Math.floor(numeric)));
   }
   getCraftingToolProficiencyBonus(actor, tools) {
     const proficiencyBonus = this.getActorProficiencyBonus(actor);
@@ -2493,7 +2588,7 @@ var CraftingService = class {
                         <tr><td><strong>Livello professione richiesto</strong></td><td>${new ProfessionService().normalizeLevel(recipe.professionLevel ?? 0)}</td></tr>
                         <tr><td><strong>Abilit\xE0</strong></td><td>${this.escapeHtml(recipe.skill || "Non impostata")}</td></tr>
                         <tr><td><strong>CD</strong></td><td>${recipe.dc}</td></tr>
-                        <tr><td><strong>Tempo</strong></td><td>${recipe.craftingTime} minuti</td></tr>
+                        <tr><td><strong>Tempo</strong></td><td>${recipe.craftingTime} ore</td></tr>
                         <tr><td><strong>XP crafting</strong></td><td>${Math.max(0, Math.floor(Number(recipe.craftingXp ?? 0))) || "Automatici"}</td></tr>
                         <tr><td><strong>Costo monetario</strong></td><td>${this.getRecipeCurrencyCost(recipe).totalCopper > 0 ? this.escapeHtml(this.getRecipeCurrencyCost(recipe).label) : "Nessuno"}</td></tr>
                         <tr><td><strong>Costo su fallimento</strong></td><td>${this.shouldConsumeCurrencyOnFailure(recipe) ? "Consumare" : "Non consumare"}</td></tr>
@@ -2929,7 +3024,7 @@ var DisassemblyService = class _DisassemblyService {
                 <p><strong>Moltiplicatore PG:</strong> ${this.escapeHtml(actorProfession.gatheringMultiplierLabel)}</p>
                 <p><strong>Abilit\xE0:</strong> ${this.escapeHtml(profile.skill || "Non impostata")}</p>
                 <p><strong>CD:</strong> ${profile.dc}</p>
-                <p><strong>Tempo:</strong> ${this.formatMinutes(profile.time)}</p>
+                <p><strong>Tempo:</strong> ${this.formatHours(profile.time)}</p>
                 <p><strong>Massimo materiali diversi:</strong> ${profile.maxResources}</p>
 
                 <h4>Materiali possibili</h4>
@@ -3257,7 +3352,7 @@ var DisassemblyService = class _DisassemblyService {
                         <tr><td><strong>Dettaglio strumenti</strong></td><td>${toolDetailsText}</td></tr>
                         <tr><td><strong>Totale</strong></td><td>${data.total}</td></tr>
                         <tr><td><strong>CD</strong></td><td>${data.profile.dc}</td></tr>
-                        <tr><td><strong>Tempo</strong></td><td>${this.formatMinutes(data.profile.time)}</td></tr>
+                        <tr><td><strong>Tempo</strong></td><td>${this.formatHours(data.profile.time)}</td></tr>
                         <tr><td><strong>Danno strumenti</strong></td><td>${data.criticalFailure ? this.escapeHtml(data.criticalFailureToolDamage ?? "Nessuno") : "-"}</td></tr>
                     </tbody>
                 </table>
@@ -3311,9 +3406,9 @@ var DisassemblyService = class _DisassemblyService {
     }
     return Math.max(1, Math.floor(baseQuantity * multiplier));
   }
-  formatMinutes(value) {
-    const minutes = Math.max(0, Number(value ?? 0));
-    return minutes === 1 ? "1 minuto" : `${minutes} minuti`;
+  formatHours(value) {
+    const hours = Math.max(0, Number(value ?? 0));
+    return hours === 1 ? "1 ora" : `${hours} ore`;
   }
   normalizeProfile(profile) {
     const professionService = new ProfessionService();
@@ -4035,7 +4130,7 @@ var ForagingService = class _ForagingService {
                 <p><strong>Moltiplicatore raccolta PG:</strong> ${this.escapeHtml(actorProfession.gatheringMultiplierLabel)}</p>
                 <p><strong>Abilit\xE0:</strong> ${this.escapeHtml(profile.skill || "Non impostata")}</p>
                 <p><strong>CD:</strong> ${profile.dc}</p>
-                <p><strong>Tempo:</strong> ${this.formatMinutes(profile.time)}</p>
+                <p><strong>Tempo:</strong> ${this.formatHours(profile.time)}</p>
                 <p><strong>Massimo risorse diverse:</strong> ${profile.maxResources}</p>
 
                 <h4>Risorse possibili</h4>
@@ -4578,7 +4673,7 @@ var ForagingService = class _ForagingService {
                         </tr>
                         <tr>
                             <td><strong>Tempo</strong></td>
-                            <td>${this.formatMinutes(data.profile.time)}</td>
+                            <td>${this.formatHours(data.profile.time)}</td>
                         </tr>
                         <tr>
                             <td><strong>Massimo risorse diverse</strong></td>
@@ -4660,12 +4755,12 @@ var ForagingService = class _ForagingService {
     }
     return Math.max(1, Math.floor(baseQuantity * multiplier));
   }
-  formatMinutes(value) {
-    const minutes = Math.max(0, Number(value ?? 0));
-    if (minutes === 1) {
-      return "1 minuto";
+  formatHours(value) {
+    const hours = Math.max(0, Number(value ?? 0));
+    if (hours === 1) {
+      return "1 ora";
     }
-    return `${minutes} minuti`;
+    return `${hours} ore`;
   }
   normalizeProfile(profile) {
     const professionService = new ProfessionService();
@@ -5283,7 +5378,7 @@ var HarvestService = class _HarvestService {
                 <p><strong>Moltiplicatore caccia PG:</strong> ${this.escapeHtml(actorProfession.gatheringMultiplierLabel)}</p>
                 <p><strong>Abilit\xE0:</strong> ${this.escapeHtml(profile.skill || "Non impostata")}</p>
                 <p><strong>CD:</strong> ${profile.dc}</p>
-                <p><strong>Tempo:</strong> ${this.formatMinutes(profile.time)}</p>
+                <p><strong>Tempo:</strong> ${this.formatHours(profile.time)}</p>
                 <p><strong>Massimo parti diverse:</strong> ${profile.maxResources}</p>
                 <p><strong>Modalit\xE0 risultati:</strong> ${this.escapeHtml(this.getHarvestOutputModeLabel(profile.harvestOutputMode))}</p>
                 <p><strong>Strumenti:</strong> ${this.escapeHtml(this.getToolRequirementLabel(profile.toolRequirement))}</p>
@@ -5957,7 +6052,7 @@ var HarvestService = class _HarvestService {
                         </tr>
                         <tr>
                             <td><strong>Tempo</strong></td>
-                            <td>${this.formatMinutes(data.profile.time)}</td>
+                            <td>${this.formatHours(data.profile.time)}</td>
                         </tr>
                         <tr>
                             <td><strong>Massimo parti diverse</strong></td>
@@ -6048,12 +6143,12 @@ var HarvestService = class _HarvestService {
     }
     return Math.max(1, Math.floor(baseQuantity * multiplier));
   }
-  formatMinutes(value) {
-    const minutes = Math.max(0, Number(value ?? 0));
-    if (minutes === 1) {
-      return "1 minuto";
+  formatHours(value) {
+    const hours = Math.max(0, Number(value ?? 0));
+    if (hours === 1) {
+      return "1 ora";
     }
-    return `${minutes} minuti`;
+    return `${hours} ore`;
   }
   normalizeProfile(profile) {
     const professionService = new ProfessionService();
@@ -7608,21 +7703,21 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
   }
   getForagingPresetProfiles() {
     return [
-      { name: "Raccolta \u2014 Foresta", biome: "foresta", profession: "erborista", skill: "nature", dc: 12, time: 60, maxResources: 3, resources: [], tools: [] },
-      { name: "Raccolta \u2014 Montagna", biome: "montagna", profession: "minatore", skill: "athletics", dc: 14, time: 90, maxResources: 3, resources: [], tools: [] },
-      { name: "Raccolta \u2014 Palude", biome: "palude", profession: "erborista", skill: "nature", dc: 15, time: 90, maxResources: 3, resources: [], tools: [] },
-      { name: "Raccolta \u2014 Costa", biome: "costa", profession: "cacciatore", skill: "survival", dc: 12, time: 60, maxResources: 3, resources: [], tools: [] },
-      { name: "Raccolta \u2014 Caverna", biome: "caverna", profession: "minatore", skill: "perception", dc: 15, time: 120, maxResources: 2, resources: [], tools: [] },
-      { name: "Raccolta \u2014 Deserto", biome: "deserto", profession: "cacciatore", skill: "survival", dc: 16, time: 120, maxResources: 2, resources: [], tools: [] }
+      { name: "Raccolta \u2014 Foresta", biome: "foresta", profession: "erborista", skill: "nature", dc: 12, time: 1, maxResources: 3, resources: [], tools: [] },
+      { name: "Raccolta \u2014 Montagna", biome: "montagna", profession: "minatore", skill: "athletics", dc: 14, time: 1.5, maxResources: 3, resources: [], tools: [] },
+      { name: "Raccolta \u2014 Palude", biome: "palude", profession: "erborista", skill: "nature", dc: 15, time: 1.5, maxResources: 3, resources: [], tools: [] },
+      { name: "Raccolta \u2014 Costa", biome: "costa", profession: "cacciatore", skill: "survival", dc: 12, time: 1, maxResources: 3, resources: [], tools: [] },
+      { name: "Raccolta \u2014 Caverna", biome: "caverna", profession: "minatore", skill: "perception", dc: 15, time: 2, maxResources: 2, resources: [], tools: [] },
+      { name: "Raccolta \u2014 Deserto", biome: "deserto", profession: "cacciatore", skill: "survival", dc: 16, time: 2, maxResources: 2, resources: [], tools: [] }
     ];
   }
   getHarvestPresetProfiles() {
     return [
-      { name: "Caccia \u2014 Bestie", creatureType: "beast", profession: "cacciatore", skill: "survival", dc: 12, time: 30, maxResources: 3, toolRequirement: "optional", toolCriticalDamage: false, resources: [], tools: [] },
-      { name: "Caccia \u2014 Draghi", creatureType: "dragon", profession: "conciatore", skill: "survival", dc: 18, time: 120, maxResources: 3, toolRequirement: "required", toolCriticalDamage: true, resources: [], tools: [] },
-      { name: "Caccia \u2014 Non morti", creatureType: "undead", profession: "alchimista", skill: "arcana", dc: 15, time: 60, maxResources: 2, toolRequirement: "optional", toolCriticalDamage: false, resources: [], tools: [] },
-      { name: "Caccia \u2014 Mostruosit\xE0", creatureType: "monstrosity", profession: "cacciatore", skill: "survival", dc: 16, time: 90, maxResources: 3, toolRequirement: "optional", toolCriticalDamage: false, resources: [], tools: [] },
-      { name: "Caccia \u2014 Vegetali", creatureType: "plant", profession: "erborista", skill: "nature", dc: 13, time: 45, maxResources: 3, toolRequirement: "optional", toolCriticalDamage: false, resources: [], tools: [] }
+      { name: "Caccia \u2014 Bestie", creatureType: "beast", profession: "cacciatore", skill: "survival", dc: 12, time: 0.5, maxResources: 3, toolRequirement: "optional", toolCriticalDamage: false, resources: [], tools: [] },
+      { name: "Caccia \u2014 Draghi", creatureType: "dragon", profession: "conciatore", skill: "survival", dc: 18, time: 2, maxResources: 3, toolRequirement: "required", toolCriticalDamage: true, resources: [], tools: [] },
+      { name: "Caccia \u2014 Non morti", creatureType: "undead", profession: "alchimista", skill: "arcana", dc: 15, time: 1, maxResources: 2, toolRequirement: "optional", toolCriticalDamage: false, resources: [], tools: [] },
+      { name: "Caccia \u2014 Mostruosit\xE0", creatureType: "monstrosity", profession: "cacciatore", skill: "survival", dc: 16, time: 1.5, maxResources: 3, toolRequirement: "optional", toolCriticalDamage: false, resources: [], tools: [] },
+      { name: "Caccia \u2014 Vegetali", creatureType: "plant", profession: "erborista", skill: "nature", dc: 13, time: 0.75, maxResources: 3, toolRequirement: "optional", toolCriticalDamage: false, resources: [], tools: [] }
     ];
   }
   async createRecipeTemplatePresets() {
@@ -7660,14 +7755,14 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
   }
   getRecipePresetTemplates() {
     return [
-      { name: "Template \u2014 Pozione alchemica", category: "Alchimia", profession: "alchimista", professionLevel: 1, skill: "arcana", dc: 12, time: 60, craftingXp: 25, qualityBonusGood: 1, qualityBonusSuperior: 2, qualityBonusExcellent: 3, qualityDiceGood: "", qualityDiceSuperior: "1d4", qualityDiceExcellent: "1d6", qualityEffectGood: "healing", qualityEffectSuperior: "healing", qualityEffectExcellent: "healing" },
-      { name: "Template \u2014 Arma semplice", category: "Forgiatura", profession: "fabbro", professionLevel: 1, skill: "athletics", dc: 12, time: 120, craftingXp: 10 },
-      { name: "Template \u2014 Armatura rinforzata", category: "Forgiatura", profession: "fabbro", professionLevel: 2, skill: "athletics", dc: 15, time: 240, craftingXp: 20 },
-      { name: "Template \u2014 Pasto da viaggio", category: "Cucina", profession: "cuoco", professionLevel: 0, skill: "survival", dc: 10, time: 30, craftingXp: 3 },
-      { name: "Template \u2014 Preparato erboristico", category: "Erboristeria", profession: "erborista", professionLevel: 1, skill: "nature", dc: 12, time: 45, craftingXp: 8 },
-      { name: "Template \u2014 Pelle lavorata", category: "Conciatura", profession: "conciatore", professionLevel: 1, skill: "survival", dc: 12, time: 90, craftingXp: 8 },
-      { name: "Template \u2014 Attrezzo semplice", category: "Artigianato", profession: "artigiano", professionLevel: 0, skill: "sleightOfHand", dc: 10, time: 60, craftingXp: 5 },
-      { name: "Template \u2014 Abito rinforzato", category: "Sartoria", profession: "sarto", professionLevel: 1, skill: "sleightOfHand", dc: 12, time: 90, craftingXp: 8 }
+      { name: "Template \u2014 Pozione alchemica", category: "Alchimia", profession: "alchimista", professionLevel: 1, skill: "arcana", dc: 12, time: 1, craftingXp: 25, qualityBonusGood: 1, qualityBonusSuperior: 2, qualityBonusExcellent: 3, qualityDiceGood: "", qualityDiceSuperior: "1d4", qualityDiceExcellent: "1d6", qualityEffectGood: "healing", qualityEffectSuperior: "healing", qualityEffectExcellent: "healing" },
+      { name: "Template \u2014 Arma semplice", category: "Forgiatura", profession: "fabbro", professionLevel: 1, skill: "athletics", dc: 12, time: 2, craftingXp: 10 },
+      { name: "Template \u2014 Armatura rinforzata", category: "Forgiatura", profession: "fabbro", professionLevel: 2, skill: "athletics", dc: 15, time: 4, craftingXp: 20 },
+      { name: "Template \u2014 Pasto da viaggio", category: "Cucina", profession: "cuoco", professionLevel: 0, skill: "survival", dc: 10, time: 0.5, craftingXp: 3 },
+      { name: "Template \u2014 Preparato erboristico", category: "Erboristeria", profession: "erborista", professionLevel: 1, skill: "nature", dc: 12, time: 0.75, craftingXp: 8 },
+      { name: "Template \u2014 Pelle lavorata", category: "Conciatura", profession: "conciatore", professionLevel: 1, skill: "survival", dc: 12, time: 1.5, craftingXp: 8 },
+      { name: "Template \u2014 Attrezzo semplice", category: "Artigianato", profession: "artigiano", professionLevel: 0, skill: "sleightOfHand", dc: 10, time: 1, craftingXp: 5 },
+      { name: "Template \u2014 Abito rinforzato", category: "Sartoria", profession: "sarto", professionLevel: 1, skill: "sleightOfHand", dc: 12, time: 1.5, craftingXp: 8 }
     ];
   }
   getActorProfessionSummary(professions) {
@@ -8571,6 +8666,10 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       consumeCurrencyOnFailure: Boolean(recipe.consumeCurrencyOnFailure ?? false),
       toolRequirement: String(recipe.toolRequirement ?? "optional") === "required" ? "required" : "optional",
       toolCriticalDamage: Boolean(recipe.toolCriticalDamage ?? false),
+      qualityMode: this.normalizeRecipeQualityMode(recipe.qualityMode ?? "margin"),
+      qualityChanceGood: this.normalizeRecipePercent(recipe.qualityChanceGood ?? 0),
+      qualityChanceSuperior: this.normalizeRecipePercent(recipe.qualityChanceSuperior ?? 0),
+      qualityChanceExcellent: this.normalizeRecipePercent(recipe.qualityChanceExcellent ?? 0),
       qualityFormulaPath: String(recipe.qualityFormulaPath ?? ""),
       qualityBonusGood: Math.max(0, Math.floor(Number(recipe.qualityBonusGood ?? 0))),
       qualityBonusSuperior: Math.max(0, Math.floor(Number(recipe.qualityBonusSuperior ?? 0))),
@@ -8598,6 +8697,17 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         }
       }
     };
+  }
+  normalizeRecipeQualityMode(value) {
+    const raw = String(value ?? "margin").trim().toLowerCase();
+    return ["normal", "margin", "chance"].includes(raw) ? raw : "margin";
+  }
+  normalizeRecipePercent(value) {
+    const numeric = Number(value ?? 0);
+    if (!Number.isFinite(numeric)) {
+      return 0;
+    }
+    return Math.max(0, Math.min(100, Math.floor(numeric)));
   }
   normalizeRecipeCurrencyDenomination(value) {
     const raw = String(value ?? "gp").trim().toLowerCase();
@@ -8768,8 +8878,15 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
             dc: Number(data.dc ?? 10),
             craftingTime: Number(data.craftingTime ?? 0),
             craftingXp: Math.max(0, Math.floor(Number(data.craftingXp ?? 0))),
+            currencyCost: Math.max(0, Number(data.currencyCost ?? data.goldCost ?? 0)),
+            currencyDenomination: this.normalizeRecipeCurrencyDenomination(data.currencyDenomination ?? data.currency ?? "gp"),
+            consumeCurrencyOnFailure: Boolean(data.consumeCurrencyOnFailure ?? false),
             toolRequirement: String(data.toolRequirement ?? "optional") === "required" ? "required" : "optional",
             toolCriticalDamage: Boolean(data.toolCriticalDamage ?? false),
+            qualityMode: this.normalizeRecipeQualityMode(data.qualityMode ?? "margin"),
+            qualityChanceGood: this.normalizeRecipePercent(data.qualityChanceGood ?? 0),
+            qualityChanceSuperior: this.normalizeRecipePercent(data.qualityChanceSuperior ?? 0),
+            qualityChanceExcellent: this.normalizeRecipePercent(data.qualityChanceExcellent ?? 0),
             qualityFormulaPath: String(data.qualityFormulaPath ?? ""),
             qualityBonusGood: Math.max(0, Math.floor(Number(data.qualityBonusGood ?? 0))),
             qualityBonusSuperior: Math.max(0, Math.floor(Number(data.qualityBonusSuperior ?? 0))),

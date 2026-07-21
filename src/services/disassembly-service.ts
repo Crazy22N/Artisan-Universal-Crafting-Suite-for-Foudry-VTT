@@ -597,7 +597,7 @@ export class DisassemblyService {
                 <p><strong>Moltiplicatore PG:</strong> ${this.escapeHtml(actorProfession.gatheringMultiplierLabel)}</p>
                 <p><strong>Abilità:</strong> ${this.escapeHtml(profile.skill || "Non impostata")}</p>
                 <p><strong>CD:</strong> ${profile.dc}</p>
-                <p><strong>Tempo:</strong> ${this.formatMinutes(profile.time)}</p>
+                <p><strong>Tempo:</strong> ${this.formatHours(profile.time)}</p>
                 <p><strong>Massimo materiali diversi:</strong> ${profile.maxResources}</p>
 
                 <h4>Materiali possibili</h4>
@@ -1059,7 +1059,7 @@ export class DisassemblyService {
                         <tr><td><strong>Dettaglio strumenti</strong></td><td>${toolDetailsText}</td></tr>
                         <tr><td><strong>Totale</strong></td><td>${data.total}</td></tr>
                         <tr><td><strong>CD</strong></td><td>${data.profile.dc}</td></tr>
-                        <tr><td><strong>Tempo</strong></td><td>${this.formatMinutes(data.profile.time)}</td></tr>
+                        <tr><td><strong>Tempo</strong></td><td>${this.formatHours(data.profile.time)}</td></tr>
                         <tr><td><strong>Danno strumenti</strong></td><td>${data.criticalFailure ? this.escapeHtml(data.criticalFailureToolDamage ?? "Nessuno") : "-"}</td></tr>
                     </tbody>
                 </table>
@@ -1123,9 +1123,9 @@ export class DisassemblyService {
         return Math.max(1, Math.floor(baseQuantity * multiplier));
     }
 
-    private formatMinutes(value: number): string {
-        const minutes = Math.max(0, Number(value ?? 0));
-        return minutes === 1 ? "1 minuto" : `${minutes} minuti`;
+    private formatHours(value: number): string {
+        const hours = Math.max(0, Number(value ?? 0));
+        return hours === 1 ? "1 ora" : `${hours} ore`;
     }
 
     private normalizeProfile(profile: Partial<DisassemblyProfile>): DisassemblyProfile {

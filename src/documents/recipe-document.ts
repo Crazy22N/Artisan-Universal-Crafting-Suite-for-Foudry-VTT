@@ -26,6 +26,10 @@ export interface ArtisanRecipeData {
     consumeCurrencyOnFailure: boolean;
     toolRequirement: string;
     toolCriticalDamage: boolean;
+    qualityMode: string;
+    qualityChanceGood: number;
+    qualityChanceSuperior: number;
+    qualityChanceExcellent: number;
     qualityFormulaPath: string;
     qualityBonusGood: number;
     qualityBonusSuperior: number;
@@ -78,6 +82,10 @@ export class RecipeDocument {
             consumeCurrencyOnFailure: false,
             toolRequirement: "optional",
             toolCriticalDamage: false,
+            qualityMode: "margin",
+            qualityChanceGood: 0,
+            qualityChanceSuperior: 0,
+            qualityChanceExcellent: 0,
             qualityFormulaPath: "",
             qualityBonusGood: 0,
             qualityBonusSuperior: 0,
@@ -113,13 +121,17 @@ export class RecipeDocument {
             category: String(merged.category ?? ""),
             profile: String(merged.profile ?? ""),
             difficulty: Number(merged.difficulty ?? 0),
-            craftingTime: Math.max(0, Math.floor(Number(merged.craftingTime ?? 0))),
+            craftingTime: Math.max(0, Number(merged.craftingTime ?? 0)),
             craftingXp: Math.max(0, Math.floor(Number((merged as any).craftingXp ?? (merged as any).xp ?? 0))),
             currencyCost: Math.max(0, Number((merged as any).currencyCost ?? (merged as any).goldCost ?? 0)),
             currencyDenomination: this.normalizeCurrencyDenomination((merged as any).currencyDenomination ?? (merged as any).currency ?? "gp"),
             consumeCurrencyOnFailure: Boolean((merged as any).consumeCurrencyOnFailure ?? false),
             toolRequirement: String((merged as any).toolRequirement || "optional") === "required" ? "required" : "optional",
             toolCriticalDamage: Boolean((merged as any).toolCriticalDamage ?? false),
+            qualityMode: this.normalizeQualityMode((merged as any).qualityMode ?? "margin"),
+            qualityChanceGood: this.normalizePercent((merged as any).qualityChanceGood ?? 0),
+            qualityChanceSuperior: this.normalizePercent((merged as any).qualityChanceSuperior ?? 0),
+            qualityChanceExcellent: this.normalizePercent((merged as any).qualityChanceExcellent ?? 0),
             qualityFormulaPath: String((merged as any).qualityFormulaPath ?? ""),
             qualityBonusGood: Math.max(0, Math.floor(Number((merged as any).qualityBonusGood ?? 0))),
             qualityBonusSuperior: Math.max(0, Math.floor(Number((merged as any).qualityBonusSuperior ?? 0))),
@@ -317,6 +329,11 @@ export class RecipeDocument {
             currencyDenomination: recipe.currencyDenomination,
             consumeCurrencyOnFailure: recipe.consumeCurrencyOnFailure,
             toolRequirement: recipe.toolRequirement,
+            toolCriticalDamage: recipe.toolCriticalDamage,
+            qualityMode: recipe.qualityMode,
+            qualityChanceGood: recipe.qualityChanceGood,
+            qualityChanceSuperior: recipe.qualityChanceSuperior,
+            qualityChanceExcellent: recipe.qualityChanceExcellent,
             qualityFormulaPath: recipe.qualityFormulaPath,
             qualityBonusGood: recipe.qualityBonusGood,
             qualityBonusSuperior: recipe.qualityBonusSuperior,
@@ -341,6 +358,31 @@ export class RecipeDocument {
 
     }
 
+
+
+    private static normalizeQualityMode(value: unknown): string {
+
+        const raw = String(value ?? "margin").trim().toLowerCase();
+
+        if (["normal", "margin", "chance"].includes(raw)) {
+            return raw;
+        }
+
+        return "margin";
+
+    }
+
+    private static normalizePercent(value: unknown): number {
+
+        const numeric = Number(value ?? 0);
+
+        if (!Number.isFinite(numeric)) {
+            return 0;
+        }
+
+        return Math.max(0, Math.min(100, Math.floor(numeric)));
+
+    }
 
     private static normalizeCurrencyDenomination(value: unknown): string {
 

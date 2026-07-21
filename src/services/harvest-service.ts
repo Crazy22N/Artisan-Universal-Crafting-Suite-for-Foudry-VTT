@@ -734,7 +734,7 @@ export class HarvestService {
                 <p><strong>Moltiplicatore caccia PG:</strong> ${this.escapeHtml(actorProfession.gatheringMultiplierLabel)}</p>
                 <p><strong>Abilità:</strong> ${this.escapeHtml(profile.skill || "Non impostata")}</p>
                 <p><strong>CD:</strong> ${profile.dc}</p>
-                <p><strong>Tempo:</strong> ${this.formatMinutes(profile.time)}</p>
+                <p><strong>Tempo:</strong> ${this.formatHours(profile.time)}</p>
                 <p><strong>Massimo parti diverse:</strong> ${profile.maxResources}</p>
                 <p><strong>Modalità risultati:</strong> ${this.escapeHtml(this.getHarvestOutputModeLabel(profile.harvestOutputMode))}</p>
                 <p><strong>Strumenti:</strong> ${this.escapeHtml(this.getToolRequirementLabel(profile.toolRequirement))}</p>
@@ -1756,7 +1756,7 @@ export class HarvestService {
                         </tr>
                         <tr>
                             <td><strong>Tempo</strong></td>
-                            <td>${this.formatMinutes(data.profile.time)}</td>
+                            <td>${this.formatHours(data.profile.time)}</td>
                         </tr>
                         <tr>
                             <td><strong>Massimo parti diverse</strong></td>
@@ -1865,15 +1865,15 @@ export class HarvestService {
 
     }
 
-    private formatMinutes(value: number): string {
+    private formatHours(value: number): string {
 
-        const minutes = Math.max(0, Number(value ?? 0));
+        const hours = Math.max(0, Number(value ?? 0));
 
-        if (minutes === 1) {
-            return "1 minuto";
+        if (hours === 1) {
+            return "1 ora";
         }
 
-        return `${minutes} minuti`;
+        return `${hours} ore`;
 
     }
 

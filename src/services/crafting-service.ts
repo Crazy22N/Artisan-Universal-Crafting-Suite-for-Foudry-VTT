@@ -348,7 +348,10 @@ export class CraftingService {
             await this.destroyTools(context);
         }
 
-        const outputQuality = this.getCraftingOutputQuality(roll);
+        const outputQuality = this.getCraftingOutputQuality(
+            validation.recipeData,
+            roll
+        );
 
         if (roll.success) {
             await this.createOutputs(
@@ -1707,7 +1710,10 @@ export class CraftingService {
 
     }
 
-    private getCraftingOutputQuality(roll: CraftingRollResult): CraftingOutputQuality {
+    private getCraftingOutputQuality(
+        recipe: ArtisanRecipeData,
+        roll: CraftingRollResult
+    ): CraftingOutputQuality {
 
         if (!roll.success) {
             return {
@@ -1722,6 +1728,21 @@ export class CraftingService {
             0,
             Number(roll.total ?? 0) - Number(roll.dc ?? 0)
         );
+
+        const mode = this.normalizeQualityMode((recipe as any).qualityMode ?? "margin");
+
+        if (mode === "normal") {
+            return {
+                key: "normal",
+                label: "Normale",
+                margin,
+                description: "La ricetta produce sempre qualità normale."
+            };
+        }
+
+        if (mode === "chance") {
+            return this.rollChanceBasedOutputQuality(recipe, margin);
+        }
 
         if (roll.criticalSuccess) {
             return {
@@ -1756,6 +1777,83 @@ export class CraftingService {
             margin,
             description: "Successo normale."
         };
+
+    }
+
+    private rollChanceBasedOutputQuality(
+        recipe: ArtisanRecipeData,
+        margin: number
+    ): CraftingOutputQuality {
+
+        const goodChance = this.normalizePercent((recipe as any).qualityChanceGood ?? 0);
+        const superiorChance = this.normalizePercent((recipe as any).qualityChanceSuperior ?? 0);
+        const excellentChance = this.normalizePercent((recipe as any).qualityChanceExcellent ?? 0);
+
+        const roll = Math.ceil(Math.random() * 100);
+
+        let threshold = excellentChance;
+
+        if (roll <= threshold) {
+            return {
+                key: "excellent",
+                label: "Eccellente",
+                margin,
+                description: `Qualità casuale: ${roll}/100 entro ${excellentChance}% eccellente.`
+            };
+        }
+
+        threshold += superiorChance;
+
+        if (roll <= threshold) {
+            return {
+                key: "superior",
+                label: "Superiore",
+                margin,
+                description: `Qualità casuale: ${roll}/100 entro ${superiorChance}% superiore.`
+            };
+        }
+
+        threshold += goodChance;
+
+        if (roll <= threshold) {
+            return {
+                key: "good",
+                label: "Buona",
+                margin,
+                description: `Qualità casuale: ${roll}/100 entro ${goodChance}% buona.`
+            };
+        }
+
+        return {
+            key: "normal",
+            label: "Normale",
+            margin,
+            description: `Qualità casuale: ${roll}/100, nessuna qualità speciale ottenuta.`
+        };
+
+    }
+
+    private normalizeQualityMode(value: unknown): "normal" | "margin" | "chance" {
+
+        const raw = String(value ?? "margin").trim().toLowerCase();
+
+        if (raw === "normal" || raw === "chance" || raw === "margin") {
+            return raw;
+        }
+
+        return "margin";
+
+    }
+
+    private normalizePercent(value: unknown): number {
+
+        const numeric = Number(value ?? 0);
+
+        if (!Number.isFinite(numeric)) {
+            return 0;
+        }
+
+        return Math.max(0, Math.min(100, Math.floor(numeric)));
 
     }
 
@@ -2833,7 +2931,7 @@ export class CraftingService {
                         <tr><td><strong>Livello professione richiesto</strong></td><td>${new ProfessionService().normalizeLevel((recipe as any).professionLevel ?? 0)}</td></tr>
                         <tr><td><strong>Abilità</strong></td><td>${this.escapeHtml(recipe.skill || "Non impostata")}</td></tr>
                         <tr><td><strong>CD</strong></td><td>${recipe.dc}</td></tr>
-                        <tr><td><strong>Tempo</strong></td><td>${recipe.craftingTime} minuti</td></tr>
+                        <tr><td><strong>Tempo</strong></td><td>${recipe.craftingTime} ore</td></tr>
                         <tr><td><strong>XP crafting</strong></td><td>${Math.max(0, Math.floor(Number((recipe as any).craftingXp ?? 0))) || "Automatici"}</td></tr>
                         <tr><td><strong>Costo monetario</strong></td><td>${this.getRecipeCurrencyCost(recipe).totalCopper > 0 ? this.escapeHtml(this.getRecipeCurrencyCost(recipe).label) : "Nessuno"}</td></tr>
                         <tr><td><strong>Costo su fallimento</strong></td><td>${this.shouldConsumeCurrencyOnFailure(recipe) ? "Consumare" : "Non consumare"}</td></tr>

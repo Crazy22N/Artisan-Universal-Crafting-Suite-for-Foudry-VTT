@@ -702,7 +702,7 @@ export class ForagingService {
                 <p><strong>Moltiplicatore raccolta PG:</strong> ${this.escapeHtml(actorProfession.gatheringMultiplierLabel)}</p>
                 <p><strong>Abilità:</strong> ${this.escapeHtml(profile.skill || "Non impostata")}</p>
                 <p><strong>CD:</strong> ${profile.dc}</p>
-                <p><strong>Tempo:</strong> ${this.formatMinutes(profile.time)}</p>
+                <p><strong>Tempo:</strong> ${this.formatHours(profile.time)}</p>
                 <p><strong>Massimo risorse diverse:</strong> ${profile.maxResources}</p>
 
                 <h4>Risorse possibili</h4>
@@ -1520,7 +1520,7 @@ export class ForagingService {
                         </tr>
                         <tr>
                             <td><strong>Tempo</strong></td>
-                            <td>${this.formatMinutes(data.profile.time)}</td>
+                            <td>${this.formatHours(data.profile.time)}</td>
                         </tr>
                         <tr>
                             <td><strong>Massimo risorse diverse</strong></td>
@@ -1620,15 +1620,15 @@ export class ForagingService {
 
     }
 
-    private formatMinutes(value: number): string {
+    private formatHours(value: number): string {
 
-        const minutes = Math.max(0, Number(value ?? 0));
+        const hours = Math.max(0, Number(value ?? 0));
 
-        if (minutes === 1) {
-            return "1 minuto";
+        if (hours === 1) {
+            return "1 ora";
         }
 
-        return `${minutes} minuti`;
+        return `${hours} ore`;
 
     }
 
