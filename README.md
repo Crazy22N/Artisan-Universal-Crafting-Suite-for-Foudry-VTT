@@ -1,7 +1,7 @@
 # Artisan — Crafting, Gathering & Professions for Foundry VTT
 
-**Versione / Version:** 1.2.3  
-**Foundry VTT:** v14, verificato su / verified on build 14.365  
+**Versione / Version:** 1.3.0  
+**Foundry VTT:** v14, verificato su / verified on build 14.367  
 **Lingue / Languages:** Italiano, English
 
 ---
@@ -35,6 +35,7 @@ Il modulo permette al GM di creare ricette, liste di raccolta, liste di caccia e
   - Quantità minime e massime per ogni risorsa.
   - Rarità/probabilità individuale per ogni risorsa.
   - Strumenti opzionali o obbligatori.
+  - Più ore di raccolta con un solo tiro, con quantità ed esperienza proporzionate alla durata scelta.
   - Progressione tramite professioni.
 
 - **Caccia**
@@ -55,6 +56,9 @@ Il modulo permette al GM di creare ricette, liste di raccolta, liste di caccia e
 
 - **Interfaccia**
   - Barra laterale con categorie espandibili.
+  - Cartelle e sottocartelle reali per organizzare le ricette.
+  - Workflow numerato e selettori visuali per Item e PNG.
+  - Pulsante nativo per ridurre e ripristinare la finestra principale.
   - Liste ordinate senza duplicazioni nelle sezioni centrali.
   - Scroll e posizione della finestra preservati dopo clic, salvataggi e aggiornamenti.
   - Registro attività, import/export e backup dei dati.
@@ -94,6 +98,7 @@ The module lets the GM create recipes, gathering lists, hunting lists and disass
   - Minimum and maximum quantity per resource.
   - Individual rarity/probability for each resource.
   - Optional or required tools.
+  - Multiple gathering hours with a single check, scaling quantities and XP by the selected duration.
   - Profession-based progression.
 
 - **Hunting**
@@ -114,6 +119,9 @@ The module lets the GM create recipes, gathering lists, hunting lists and disass
 
 - **Interface**
   - Expandable category sidebar.
+  - True folders and subfolders for organizing recipes.
+  - Numbered workflow and visual Item/NPC selectors.
+  - Native minimize/restore button for the main window.
   - Organized lists without duplicate entries in the main sections.
   - Scroll position is preserved after clicks, saves and updates.
   - Activity log, import/export and data backup.
@@ -134,7 +142,7 @@ https://github.com/Crazy22N/Artisan-Universal-Crafting-Suite-for-Foudry-VTT/rele
 
 ## Installazione manuale / Manual installation
 
-1. Download `artisan-v1.2.3.zip` from the GitHub release.
+1. Download `artisan-v1.3.0.zip` from the GitHub release.
 2. Extract the `artisan` folder into Foundry VTT's `Data/modules/` folder.
 3. Restart Foundry VTT and enable Artisan in your world.
 

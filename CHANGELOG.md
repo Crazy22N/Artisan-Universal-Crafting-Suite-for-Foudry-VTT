@@ -3,6 +3,47 @@
 Tutte le modifiche rilevanti di Artisan sono documentate in questo file.  
 All notable changes to Artisan are documented in this file.
 
+## [1.3.0] - 2026-08-29
+
+### Italiano
+
+- Nuova interfaccia completa in stile pergamena e bronzo, con sidebar, toolbar, schede e scrollbar più leggibili.
+- Ricette organizzabili in vere cartelle e sottocartelle, con ricerca e filtri preservati.
+- Editor Ricette riorganizzato come workflow numerato: dati, prova e costi, ingredienti, strumenti, output e qualità.
+- Aggiunti selettori visuali per Item e PNG del mondo o dei compendi; gli UUID tecnici restano nascosti durante l'uso normale.
+- Il pulsante Verifica controlla la ricetta e pubblica un riepilogo in chat senza consumare ingredienti né creare oggetti.
+- Rimossa dalla sezione Ricette la scheda permanente "Stato configurazione".
+- Messaggi chat di Ricette, Raccolta, Caccia e Disassemblaggio resi più compatti; esperienza mostrata in una sola riga.
+- Raccolta: aggiunto "Ore per questo tiro" per coprire più ore con una singola prova; quantità e XP aumentano in proporzione.
+- Caccia: mantenuto il calcolo XP per singola unità effettivamente raccolta, inclusi moltiplicatori e successo critico.
+- Disassemblaggio: la risorsa sorgente viene sempre consumata dopo un tentativo effettuato, anche in caso di fallimento.
+- Corretto il pulsante Riduci/Ripristina usando le azioni native di `ApplicationV2`; la finestra può collassare alla sola barra del titolo.
+- Formato dati e ricette esistenti invariati; nessuna migrazione richiesta.
+- Compatibilità verificata con Foundry VTT 14.367; funzioni avanzate ottimizzate per D&D 5e 5.3.3.
+
+### English
+
+- Complete parchment-and-bronze interface refresh with clearer sidebar, toolbar, cards and scrollbars.
+- Recipes can be organized in real folders and subfolders while preserving search and filters.
+- Recipe editor reorganized as a numbered workflow: details, checks and costs, ingredients, tools, output and quality.
+- Added visual selectors for world/compendium Items and NPCs; technical UUIDs stay hidden during normal use.
+- The Verify button checks a recipe and posts a chat summary without consuming ingredients or creating Items.
+- Removed the permanent "Configuration status" panel from the Recipes section.
+- More compact chat messages for Crafting, Gathering, Hunting and Disassembly; profession XP is displayed on one line.
+- Gathering: added "Hours for this check" to cover multiple hours with one roll; quantities and XP scale proportionally.
+- Hunting keeps XP per actual gathered unit, including profession multipliers and critical success.
+- Disassembly always consumes the source resource after an attempted roll, including failure.
+- Fixed Minimize/Restore through native `ApplicationV2` actions; the window can collapse to its title bar.
+- Existing data and recipe formats are unchanged; no migration is required.
+- Verified with Foundry VTT 14.367; advanced features are optimized for D&D 5e 5.3.3.
+
+## [1.2.4]
+
+- Ricette: ingredienti alternativi tramite gruppi (stesso gruppo = OR; gruppi diversi = AND).
+- Ricette: selezione automatica dell'alternativa disponibile e consumo solo dell'ingrediente utilizzato.
+- Caccia: XP configurabile per ogni unità di risorsa raccolta.
+- Caccia: XP calcolata sulla quantità finale effettivamente raccolta, inclusi moltiplicatori di professione e successo critico.
+
 ## [1.2.3] - 2026-07-21
 
 ### Italiano

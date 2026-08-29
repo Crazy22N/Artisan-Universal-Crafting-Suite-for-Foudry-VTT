@@ -7,6 +7,13 @@
             <p>{{subtitle}}</p>
         </div>
 
+        {{#if isRecipesSection}}
+            <div class="artisan-sidebar-search">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="search" value="{{recipeFilters.search}}" placeholder="{{localize 'ARTISAN.SearchRecipes'}}" data-artisan-recipe-filter data-filter="search">
+            </div>
+        {{/if}}
+
         <nav class="artisan-explorer">
             {{#each explorer}}
                 <section class="artisan-explorer__section {{#if selected}}is-selected{{/if}} {{#if collapsed}}is-collapsed{{/if}}" data-section="{{id}}">
@@ -33,6 +40,96 @@
                         <div class="artisan-explorer__items">
                             {{#if items.length}}
                                 {{#each items}}
+                                    {{#if (eq kind "recipeCategory")}}
+                                        <div class="artisan-recipe-category {{#if expanded}}is-expanded{{else}}is-collapsed{{/if}}">
+                                            <button
+                                                type="button"
+                                                class="artisan-recipe-category__header"
+                                                data-artisan-toggle-explorer-section
+                                                data-section-id="{{id}}"
+                                                aria-expanded="{{#if expanded}}true{{else}}false{{/if}}"
+                                            >
+                                                <span class="artisan-recipe-category__title">
+                                                    <i class="fa-solid fa-folder{{#if expanded}}-open{{/if}}"></i>
+                                                    <span>{{label}}</span>
+                                                </span>
+                                                <span class="artisan-recipe-category__meta">
+                                                    <span class="artisan-explorer__count">{{count}}</span>
+                                                    <i class="fa-solid fa-chevron-down artisan-recipe-category__chevron"></i>
+                                                </span>
+                                            </button>
+                                            {{#if expanded}}
+                                                <div class="artisan-recipe-category__items">
+                                                    {{#each directRecipes}}
+                                                        <button
+                                                            type="button"
+                                                            class="artisan-explorer__item artisan-recipe-category__recipe {{#if selected}}is-selected{{/if}} {{recipeStatusClass}}"
+                                                            title="{{recipeStatusTitle}}"
+                                                            data-artisan-select-recipe
+                                                            data-recipe-id="{{id}}"
+                                                        >
+                                                            <span class="artisan-explorer__item-main">
+                                                                {{#if img}}<img class="artisan-recipe-thumb" src="{{img}}" alt="">{{else}}{{#if icon}}<i class="{{icon}}"></i>{{else}}<i class="fa-solid fa-flask"></i>{{/if}}{{/if}}
+                                                                <span>{{label}}</span>
+                                                            </span>
+                                                            {{#if recipeStatusLabel}}
+                                                                <span class="artisan-recipe-status-badge {{recipeStatusClass}}">
+                                                                    <i class="{{recipeStatusIcon}}"></i>
+                                                                    {{recipeStatusLabel}}
+                                                                </span>
+                                                            {{/if}}
+                                                        </button>
+                                                    {{/each}}
+
+                                                    {{#each subcategories}}
+                                                        <div class="artisan-recipe-subcategory {{#if expanded}}is-expanded{{else}}is-collapsed{{/if}}">
+                                                            <button
+                                                                type="button"
+                                                                class="artisan-recipe-subcategory__header"
+                                                                data-artisan-toggle-explorer-section
+                                                                data-section-id="{{id}}"
+                                                                aria-expanded="{{#if expanded}}true{{else}}false{{/if}}"
+                                                            >
+                                                                <span class="artisan-recipe-subcategory__title">
+                                                                    <i class="fa-solid fa-folder{{#if expanded}}-open{{/if}}"></i>
+                                                                    <span>{{label}}</span>
+                                                                </span>
+                                                                <span class="artisan-recipe-subcategory__meta">
+                                                                    <span class="artisan-explorer__count">{{count}}</span>
+                                                                    <i class="fa-solid fa-chevron-down artisan-recipe-subcategory__chevron"></i>
+                                                                </span>
+                                                            </button>
+                                                            {{#if expanded}}
+                                                                <div class="artisan-recipe-subcategory__items">
+                                                                    {{#each recipes}}
+                                                                        <button
+                                                                            type="button"
+                                                                            class="artisan-explorer__item artisan-recipe-subcategory__recipe {{#if selected}}is-selected{{/if}} {{recipeStatusClass}}"
+                                                                            title="{{recipeStatusTitle}}"
+                                                                            data-artisan-select-recipe
+                                                                            data-recipe-id="{{id}}"
+                                                                        >
+                                                                            <span class="artisan-explorer__item-main">
+                                                                                {{#if img}}<img class="artisan-recipe-thumb" src="{{img}}" alt="">{{else}}{{#if icon}}<i class="{{icon}}"></i>{{else}}<i class="fa-solid fa-flask"></i>{{/if}}{{/if}}
+                                                                                <span>{{label}}</span>
+                                                                            </span>
+                                                                            {{#if recipeStatusLabel}}
+                                                                                <span class="artisan-recipe-status-badge {{recipeStatusClass}}">
+                                                                                    <i class="{{recipeStatusIcon}}"></i>
+                                                                                    {{recipeStatusLabel}}
+                                                                                </span>
+                                                                            {{/if}}
+                                                                        </button>
+                                                                    {{/each}}
+                                                                </div>
+                                                            {{/if}}
+                                                        </div>
+                                                    {{/each}}
+                                                </div>
+                                            {{/if}}
+                                        </div>
+                                    {{/if}}
+
                                     {{#if (eq kind "recipe")}}
                                         <button
                                             type="button"
@@ -246,7 +343,11 @@
                             <img src="{{selectedRecipe.img}}" alt="{{selectedRecipe.name}}">
                             <div>
                                 <h2>{{selectedRecipe.name}}</h2>
-                                <p>{{selectedRecipe.uuid}}</p>
+                                <p class="artisan-recipe-meta-line">
+                                    {{#if selectedRecipe.category}}<span><i class="fa-solid fa-folder"></i> {{selectedRecipe.category}}</span>{{/if}}
+                                    {{#if selectedRecipe.subcategory}}<span><i class="fa-solid fa-folder-tree"></i> {{selectedRecipe.subcategory}}</span>{{/if}}
+                                    <span><i class="fa-solid fa-tag"></i> {{selectedRecipe.type}}</span>
+                                </p>
                             </div>
                         </div>
 
@@ -316,7 +417,17 @@
                         </span>
                     </section>
 
-                    <div class="artisan-inspector__form">
+                    <div class="artisan-recipe-workflow">
+
+                        <section class="artisan-recipe-section artisan-recipe-section--basics">
+                            <header class="artisan-recipe-section__header">
+                                <span class="artisan-recipe-section__number">1</span>
+                                <div>
+                                    <h3>{{localize 'ARTISAN.RecipeSectionBasics'}}</h3>
+                                    <p>{{localize 'ARTISAN.RecipeSectionBasicsHelp'}}</p>
+                                </div>
+                            </header>
+                            <div class="artisan-inspector__form artisan-inspector__form--section">
 
                         <div class="artisan-inspector__field">
                             <label>{{localize 'ARTISAN.RecipeName'}}</label>
@@ -344,6 +455,17 @@
                                 value="{{selectedRecipe.category}}"
                                 placeholder="{{localize 'ARTISAN.CategoryPlaceholder'}}"
                                 data-artisan-field="category"
+                                data-recipe-id="{{selectedRecipe.id}}"
+                            >
+                        </div>
+
+                        <div class="artisan-inspector__field">
+                            <label>{{localize 'ARTISAN.Subcategory'}}</label>
+                            <input
+                                type="text"
+                                value="{{selectedRecipe.subcategory}}"
+                                placeholder="{{localize 'ARTISAN.SubcategoryPlaceholder'}}"
+                                data-artisan-field="subcategory"
                                 data-recipe-id="{{selectedRecipe.id}}"
                             >
                         </div>
@@ -400,6 +522,18 @@
                             <small>{{localize 'ARTISAN.CraftingXpHelp'}}</small>
                         </div>
 
+                            </div>
+                        </section>
+
+                        <section class="artisan-recipe-section artisan-recipe-section--check">
+                            <header class="artisan-recipe-section__header">
+                                <span class="artisan-recipe-section__number">2</span>
+                                <div>
+                                    <h3>{{localize 'ARTISAN.RecipeSectionCheck'}}</h3>
+                                    <p>{{localize 'ARTISAN.RecipeSectionCheckHelp'}}</p>
+                                </div>
+                            </header>
+                            <div class="artisan-inspector__form artisan-inspector__form--section">
                         <div class="artisan-inspector__field">
                             <label>{{localize 'ARTISAN.CurrencyCost'}}</label>
                             <input
@@ -437,6 +571,251 @@
                             <small>{{localize 'ARTISAN.CurrencyOnFailureHelp'}}</small>
                         </div>
 
+                        <div class="artisan-inspector__field">
+                            <label>{{localize 'ARTISAN.ToolUsage'}}</label>
+                            <select
+                                data-artisan-field="toolRequirement"
+                                data-artisan-tool-requirement-select
+                                data-current-requirement="{{selectedRecipe.toolRequirement}}"
+                                data-recipe-id="{{selectedRecipe.id}}"
+                            >
+                                <option value="optional">{{localize 'ARTISAN.ToolOptionalOption'}}</option>
+                                <option value="required">{{localize 'ARTISAN.ToolRequiredOption'}}</option>
+                            </select>
+                            <small>{{localize 'ARTISAN.ToolRequirementCompetenceHelp'}}</small>
+                        </div>
+
+                        <div class="artisan-inspector__field artisan-toggle-field">
+                            <label>{{localize 'ARTISAN.ToolBreakage'}}</label>
+                            <label class="artisan-checkbox-line">
+                                <input type="checkbox" data-artisan-field="toolCriticalDamage" data-recipe-id="{{selectedRecipe.id}}" {{#if selectedRecipe.toolCriticalDamage}}checked{{/if}}>
+                                <span>{{localize 'ARTISAN.ToolBreakageNaturalOne'}}</span>
+                            </label>
+                            <small>{{localize 'ARTISAN.ToolBreakageCraftingHelp'}}</small>
+                        </div>
+
+                        <div class="artisan-inspector__field">
+                            <label>{{localize 'ARTISAN.Skill'}}</label>
+                            <input
+                                type="text"
+                                value="{{selectedRecipe.skill}}"
+                                placeholder="{{localize 'ARTISAN.SkillPlaceholder1'}}"
+                                data-artisan-field="skill"
+                                data-recipe-id="{{selectedRecipe.id}}"
+                            >
+                        </div>
+
+                        <div class="artisan-inspector__field">
+                            <label>{{localize 'ARTISAN.DC'}}</label>
+                            <input
+                                type="number"
+                                value="{{selectedRecipe.dc}}"
+                                min="0"
+                                step="1"
+                                data-artisan-field="dc"
+                                data-recipe-id="{{selectedRecipe.id}}"
+                            >
+                        </div>
+
+                            </div>
+                        </section>
+
+                    </div>
+
+                    <section
+                        class="artisan-component-panel artisan-recipe-component-card artisan-recipe-component-card--ingredients"
+                        data-artisan-drop-zone
+                        data-recipe-id="{{selectedRecipe.id}}"
+                        data-collection="ingredients"
+                    >
+
+                        <header class="artisan-component-panel__header artisan-recipe-component-card__header">
+                            <span class="artisan-recipe-section__number">3</span>
+                            <div class="artisan-recipe-component-card__title">
+                                <h3>{{localize 'ARTISAN.Ingredients'}}</h3>
+                                <small>{{localize 'ARTISAN.RecipeIngredientsHelp'}}</small>
+                            </div>
+                            <span>{{localize 'ARTISAN.DropItemOrUuid'}}</span>
+                        </header>
+                        <p class="artisan-muted-note"><strong>Gruppi ingredienti:</strong> stesso numero = alternativa (OR); numeri diversi = ingredienti obbligatori insieme (AND).</p>
+
+                        <div class="artisan-component-add artisan-component-add--ingredients">
+                            <label class="artisan-component-field artisan-component-field--uuid">
+                                <span>{{localize 'ARTISAN.IngredientItem'}}</span>
+                                <div class="artisan-item-picker-field">
+                                    <input type="text" placeholder="{{localize 'ARTISAN.ItemUuidPlaceholder'}}" data-artisan-component-uuid data-artisan-picker-target>
+                                    <button type="button" class="artisan-item-picker-button" data-artisan-pick-item data-artisan-picker-kinds="Item">
+                                        <i class="fa-solid fa-box-open"></i>
+                                        <span>{{localize 'ARTISAN.SelectItem'}}</span>
+                                    </button>
+                                </div>
+                            </label>
+                            <label class="artisan-component-field artisan-component-field--number">
+                                <span>{{localize 'ARTISAN.RequiredQuantity'}}</span>
+                                <input type="number" min="1" step="1" value="1" data-artisan-component-quantity title="{{localize 'ARTISAN.RequiredQuantity'}}">
+                            </label>
+                            <label class="artisan-component-field artisan-component-field--number">
+                                <span>{{localize 'ARTISAN.AlternativeGroup'}}</span>
+                                <input type="number" min="1" step="1" value="{{selectedRecipe.nextIngredientGroup}}" data-artisan-component-group class="artisan-component-row__group" title="{{localize 'ARTISAN.IngredientGroupTitle'}}">
+                            </label>
+                            <button type="button" class="artisan-small-button artisan-component-add__button" data-artisan-add-component data-recipe-id="{{selectedRecipe.id}}" data-collection="ingredients">
+                                <i class="fa-solid fa-plus"></i>
+                                {{localize 'ARTISAN.Add'}}
+                            </button>
+                        </div>
+
+                        {{#if selectedRecipe.ingredientGroups.length}}
+                            <div class="artisan-ingredient-help">
+                                <i class="fa-solid fa-circle-info"></i>
+                                <span>{{localize 'ARTISAN.IngredientGroupsHelp'}}</span>
+                            </div>
+                            <div class="artisan-ingredient-groups">
+                                {{#each selectedRecipe.ingredientGroups}}
+                                    <section class="artisan-ingredient-group">
+                                        <header class="artisan-ingredient-group__header">
+                                            <div>
+                                                <strong>{{localize 'ARTISAN.IngredientGroup'}} {{id}}</strong>
+                                                {{#if hasAlternatives}}
+                                                    <span>{{localize 'ARTISAN.ChooseOneAlternative'}}</span>
+                                                {{else}}
+                                                    <span>{{localize 'ARTISAN.RequiredIngredientGroup'}}</span>
+                                                {{/if}}
+                                            </div>
+                                            {{#if hasAlternatives}}<span class="artisan-group-badge">OR</span>{{/if}}
+                                        </header>
+                                        <div class="artisan-component-list artisan-component-list--grouped">
+                                            {{#each ingredients}}
+                                                <div class="artisan-component-row artisan-component-row--ingredient {{#unless found}}is-missing{{/unless}}">
+                                                    <img src="{{img}}" alt="{{name}}">
+                                                    <button type="button" class="artisan-component-row__main artisan-component-row__main--clean" data-artisan-open-component data-uuid="{{uuid}}" title="{{localize 'ARTISAN.OpenItem'}}">
+                                                        <strong>{{name}}</strong>
+                                                    </button>
+                                                    <label class="artisan-component-number-field">
+                                                        <span>{{localize 'ARTISAN.RequiredQuantity'}}</span>
+                                                        <input type="number" min="1" step="1" value="{{quantity}}" data-artisan-component-row-quantity data-recipe-id="{{recipeId}}" data-collection="{{collection}}" data-index="{{index}}">
+                                                    </label>
+                                                    <label class="artisan-component-number-field artisan-component-number-field--group" title="{{localize 'ARTISAN.IngredientGroupTitle'}}">
+                                                        <span>{{localize 'ARTISAN.GroupNumber'}}</span>
+                                                        <input type="number" min="1" step="1" value="{{ingredientGroup}}" data-artisan-component-row-group data-recipe-id="{{recipeId}}" data-collection="{{collection}}" data-index="{{index}}">
+                                                    </label>
+                                                    <button type="button" class="artisan-icon-button" data-artisan-open-component data-uuid="{{uuid}}" title="{{localize 'ARTISAN.Open'}}"><i class="fa-solid fa-up-right-from-square"></i></button>
+                                                    <button type="button" class="artisan-icon-button" data-artisan-remove-component data-recipe-id="{{recipeId}}" data-collection="{{collection}}" data-index="{{index}}" title="{{localize 'ARTISAN.Remove'}}"><i class="fa-solid fa-trash"></i></button>
+                                                </div>
+                                            {{/each}}
+                                        </div>
+                                    </section>
+                                {{/each}}
+                            </div>
+                        {{else}}
+                            <p class="artisan-component-panel__empty">{{localize 'ARTISAN.NoIngredients'}}</p>
+                        {{/if}}
+
+                    </section>
+
+                    <section class="artisan-component-panel artisan-recipe-component-card artisan-recipe-component-card--tools" data-artisan-drop-zone data-recipe-id="{{selectedRecipe.id}}" data-collection="tools">
+                        <header class="artisan-component-panel__header artisan-recipe-component-card__header">
+                            <span class="artisan-recipe-section__number">4</span>
+                            <div class="artisan-recipe-component-card__title">
+                                <h3>{{localize 'ARTISAN.Tools'}}</h3>
+                                <small>{{localize 'ARTISAN.RecipeToolsHelp'}}</small>
+                            </div>
+                            <span>{{localize 'ARTISAN.DropItemOrUuid'}}</span>
+                        </header>
+
+                        <div class="artisan-component-add">
+                            <div class="artisan-item-picker-field">
+                                    <input type="text" placeholder="{{localize 'ARTISAN.ItemUuidPlaceholder'}}" data-artisan-component-uuid data-artisan-picker-target>
+                                    <button type="button" class="artisan-item-picker-button" data-artisan-pick-item data-artisan-picker-kinds="Item">
+                                        <i class="fa-solid fa-box-open"></i>
+                                        <span>{{localize 'ARTISAN.SelectItem'}}</span>
+                                    </button>
+                                </div>
+                            <input type="number" min="1" step="1" value="1" data-artisan-component-quantity>
+                            <button type="button" class="artisan-small-button" data-artisan-add-component data-recipe-id="{{selectedRecipe.id}}" data-collection="tools">
+                                <i class="fa-solid fa-plus"></i>
+                                {{localize 'ARTISAN.Add'}}
+                            </button>
+                        </div>
+
+                        {{#if selectedRecipe.tools.length}}
+                            <div class="artisan-component-list">
+                                {{#each selectedRecipe.tools}}
+                                    <div class="artisan-component-row {{#unless found}}is-missing{{/unless}}">
+                                        <img src="{{img}}" alt="{{name}}">
+                                        <button type="button" class="artisan-component-row__main" data-artisan-open-component data-uuid="{{uuid}}" title="{{localize 'ARTISAN.OpenItem'}}">
+                                            <strong>{{name}}</strong>
+                                        </button>
+                                        <input type="number" min="1" step="1" value="{{quantity}}" class="artisan-component-row__quantity" data-artisan-component-row-quantity data-recipe-id="{{recipeId}}" data-collection="{{collection}}" data-index="{{index}}">
+                                        <button type="button" class="artisan-icon-button" data-artisan-open-component data-uuid="{{uuid}}" title="{{localize 'ARTISAN.Open'}}">
+                                            <i class="fa-solid fa-up-right-from-square"></i>
+                                        </button>
+                                        <button type="button" class="artisan-icon-button" data-artisan-remove-component data-recipe-id="{{recipeId}}" data-collection="{{collection}}" data-index="{{index}}" title="{{localize 'ARTISAN.Remove'}}">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                    </div>
+                                {{/each}}
+                            </div>
+                        {{else}}
+                            <p class="artisan-component-panel__empty">{{localize 'ARTISAN.NoRequiredTools'}}</p>
+                        {{/if}}
+                    </section>
+
+                    <section class="artisan-component-panel artisan-recipe-component-card artisan-recipe-component-card--outputs" data-artisan-drop-zone data-recipe-id="{{selectedRecipe.id}}" data-collection="outputs">
+                        <header class="artisan-component-panel__header artisan-recipe-component-card__header">
+                            <span class="artisan-recipe-section__number">5</span>
+                            <div class="artisan-recipe-component-card__title">
+                                <h3>{{localize 'ARTISAN.Output'}}</h3>
+                                <small>{{localize 'ARTISAN.RecipeOutputHelp'}}</small>
+                            </div>
+                            <span>{{localize 'ARTISAN.DropItemOrUuid'}}</span>
+                        </header>
+
+                        <div class="artisan-component-add">
+                            <div class="artisan-item-picker-field">
+                                    <input type="text" placeholder="{{localize 'ARTISAN.ItemUuidPlaceholder'}}" data-artisan-component-uuid data-artisan-picker-target>
+                                    <button type="button" class="artisan-item-picker-button" data-artisan-pick-item data-artisan-picker-kinds="Item">
+                                        <i class="fa-solid fa-box-open"></i>
+                                        <span>{{localize 'ARTISAN.SelectItem'}}</span>
+                                    </button>
+                                </div>
+                            <input type="number" min="1" step="1" value="1" data-artisan-component-quantity>
+                            <button type="button" class="artisan-small-button" data-artisan-add-component data-recipe-id="{{selectedRecipe.id}}" data-collection="outputs">
+                                <i class="fa-solid fa-plus"></i>
+                                {{localize 'ARTISAN.Add'}}
+                            </button>
+                        </div>
+
+                        {{#if selectedRecipe.outputs.length}}
+                            <div class="artisan-component-list">
+                                {{#each selectedRecipe.outputs}}
+                                    <div class="artisan-component-row {{#unless found}}is-missing{{/unless}}">
+                                        <img src="{{img}}" alt="{{name}}">
+                                        <button type="button" class="artisan-component-row__main" data-artisan-open-component data-uuid="{{uuid}}" title="{{localize 'ARTISAN.OpenItem'}}">
+                                            <strong>{{name}}</strong>
+                                        </button>
+                                        <input type="number" min="1" step="1" value="{{quantity}}" class="artisan-component-row__quantity" data-artisan-component-row-quantity data-recipe-id="{{recipeId}}" data-collection="{{collection}}" data-index="{{index}}">
+                                        <button type="button" class="artisan-icon-button" data-artisan-open-component data-uuid="{{uuid}}" title="{{localize 'ARTISAN.Open'}}">
+                                            <i class="fa-solid fa-up-right-from-square"></i>
+                                        </button>
+                                        <button type="button" class="artisan-icon-button" data-artisan-remove-component data-recipe-id="{{recipeId}}" data-collection="{{collection}}" data-index="{{index}}" title="{{localize 'ARTISAN.Remove'}}">
+                                            <i class="fa-solid fa-trash"></i>
+                                        </button>
+                                    </div>
+                                {{/each}}
+                            </div>
+                        {{else}}
+                            <p class="artisan-component-panel__empty">{{localize 'ARTISAN.NoOutput'}}</p>
+                        {{/if}}
+                    </section>
+
+                    <section class="artisan-recipe-section artisan-recipe-section--quality">
+                        <header class="artisan-recipe-section__header">
+                            <span class="artisan-recipe-section__number">6</span>
+                            <div>
+                                <h3>{{localize 'ARTISAN.RecipeSectionQuality'}}</h3>
+                                <p>{{localize 'ARTISAN.RecipeSectionQualityHelp'}}</p>
+                            </div>
+                        </header>
                         <div class="artisan-inspector__field artisan-inspector__field--wide artisan-quality-compact">
                             <div class="artisan-quality-compact__header">
                                 <label>{{localize 'ARTISAN.QualityEffectsTitle'}}</label>
@@ -668,176 +1047,6 @@
                             <small class="artisan-quality-compact__hint">{{localize 'ARTISAN.QualityDiceHelp'}}</small>
                         </div>
 
-                        <div class="artisan-inspector__field">
-                            <label>{{localize 'ARTISAN.ToolUsage'}}</label>
-                            <select
-                                data-artisan-field="toolRequirement"
-                                data-artisan-tool-requirement-select
-                                data-current-requirement="{{selectedRecipe.toolRequirement}}"
-                                data-recipe-id="{{selectedRecipe.id}}"
-                            >
-                                <option value="optional">{{localize 'ARTISAN.ToolOptionalOption'}}</option>
-                                <option value="required">{{localize 'ARTISAN.ToolRequiredOption'}}</option>
-                            </select>
-                            <small>{{localize 'ARTISAN.ToolRequirementCompetenceHelp'}}</small>
-                        </div>
-
-                        <div class="artisan-inspector__field artisan-toggle-field">
-                            <label>{{localize 'ARTISAN.ToolBreakage'}}</label>
-                            <label class="artisan-checkbox-line">
-                                <input type="checkbox" data-artisan-field="toolCriticalDamage" data-recipe-id="{{selectedRecipe.id}}" {{#if selectedRecipe.toolCriticalDamage}}checked{{/if}}>
-                                <span>{{localize 'ARTISAN.ToolBreakageNaturalOne'}}</span>
-                            </label>
-                            <small>{{localize 'ARTISAN.ToolBreakageCraftingHelp'}}</small>
-                        </div>
-
-                        <div class="artisan-inspector__field">
-                            <label>{{localize 'ARTISAN.Skill'}}</label>
-                            <input
-                                type="text"
-                                value="{{selectedRecipe.skill}}"
-                                placeholder="{{localize 'ARTISAN.SkillPlaceholder1'}}"
-                                data-artisan-field="skill"
-                                data-recipe-id="{{selectedRecipe.id}}"
-                            >
-                        </div>
-
-                        <div class="artisan-inspector__field">
-                            <label>{{localize 'ARTISAN.DC'}}</label>
-                            <input
-                                type="number"
-                                value="{{selectedRecipe.dc}}"
-                                min="0"
-                                step="1"
-                                data-artisan-field="dc"
-                                data-recipe-id="{{selectedRecipe.id}}"
-                            >
-                        </div>
-
-                    </div>
-
-                    <section
-                        class="artisan-component-panel"
-                        data-artisan-drop-zone
-                        data-recipe-id="{{selectedRecipe.id}}"
-                        data-collection="ingredients"
-                    >
-
-                        <header class="artisan-component-panel__header">
-                            <h3>{{localize 'ARTISAN.Ingredients'}}</h3>
-                            <span>{{localize 'ARTISAN.DropItemOrUuid'}}</span>
-                        </header>
-
-                        <div class="artisan-component-add">
-                            <input type="text" placeholder="{{localize 'ARTISAN.ItemUuidPlaceholder'}}" data-artisan-component-uuid>
-                            <input type="number" min="1" step="1" value="1" data-artisan-component-quantity>
-                            <button type="button" class="artisan-small-button" data-artisan-add-component data-recipe-id="{{selectedRecipe.id}}" data-collection="ingredients">
-                                <i class="fa-solid fa-plus"></i>
-                                {{localize 'ARTISAN.Add'}}
-                            </button>
-                        </div>
-
-                        {{#if selectedRecipe.ingredients.length}}
-                            <div class="artisan-component-list">
-                                {{#each selectedRecipe.ingredients}}
-                                    <div class="artisan-component-row {{#unless found}}is-missing{{/unless}}">
-                                        <img src="{{img}}" alt="{{name}}">
-                                        <button type="button" class="artisan-component-row__main" data-artisan-open-component data-uuid="{{uuid}}" title="{{localize 'ARTISAN.OpenItem'}}">
-                                            <strong>{{name}}</strong>
-                                            <code>{{uuid}}</code>
-                                        </button>
-                                        <input type="number" min="1" step="1" value="{{quantity}}" class="artisan-component-row__quantity" data-artisan-component-row-quantity data-recipe-id="{{recipeId}}" data-collection="{{collection}}" data-index="{{index}}">
-                                        <button type="button" class="artisan-icon-button" data-artisan-open-component data-uuid="{{uuid}}" title="{{localize 'ARTISAN.Open'}}">
-                                            <i class="fa-solid fa-up-right-from-square"></i>
-                                        </button>
-                                        <button type="button" class="artisan-icon-button" data-artisan-remove-component data-recipe-id="{{recipeId}}" data-collection="{{collection}}" data-index="{{index}}" title="{{localize 'ARTISAN.Remove'}}">
-                                            <i class="fa-solid fa-trash"></i>
-                                        </button>
-                                    </div>
-                                {{/each}}
-                            </div>
-                        {{else}}
-                            <p class="artisan-component-panel__empty">{{localize 'ARTISAN.NoIngredients'}}</p>
-                        {{/if}}
-
-                    </section>
-
-                    <section class="artisan-component-panel" data-artisan-drop-zone data-recipe-id="{{selectedRecipe.id}}" data-collection="tools">
-                        <header class="artisan-component-panel__header">
-                            <h3>{{localize 'ARTISAN.Tools'}}</h3>
-                            <span>{{localize 'ARTISAN.DropItemOrUuid'}}</span>
-                        </header>
-
-                        <div class="artisan-component-add">
-                            <input type="text" placeholder="{{localize 'ARTISAN.ItemUuidPlaceholder'}}" data-artisan-component-uuid>
-                            <input type="number" min="1" step="1" value="1" data-artisan-component-quantity>
-                            <button type="button" class="artisan-small-button" data-artisan-add-component data-recipe-id="{{selectedRecipe.id}}" data-collection="tools">
-                                <i class="fa-solid fa-plus"></i>
-                                {{localize 'ARTISAN.Add'}}
-                            </button>
-                        </div>
-
-                        {{#if selectedRecipe.tools.length}}
-                            <div class="artisan-component-list">
-                                {{#each selectedRecipe.tools}}
-                                    <div class="artisan-component-row {{#unless found}}is-missing{{/unless}}">
-                                        <img src="{{img}}" alt="{{name}}">
-                                        <button type="button" class="artisan-component-row__main" data-artisan-open-component data-uuid="{{uuid}}" title="{{localize 'ARTISAN.OpenItem'}}">
-                                            <strong>{{name}}</strong>
-                                            <code>{{uuid}}</code>
-                                        </button>
-                                        <input type="number" min="1" step="1" value="{{quantity}}" class="artisan-component-row__quantity" data-artisan-component-row-quantity data-recipe-id="{{recipeId}}" data-collection="{{collection}}" data-index="{{index}}">
-                                        <button type="button" class="artisan-icon-button" data-artisan-open-component data-uuid="{{uuid}}" title="{{localize 'ARTISAN.Open'}}">
-                                            <i class="fa-solid fa-up-right-from-square"></i>
-                                        </button>
-                                        <button type="button" class="artisan-icon-button" data-artisan-remove-component data-recipe-id="{{recipeId}}" data-collection="{{collection}}" data-index="{{index}}" title="{{localize 'ARTISAN.Remove'}}">
-                                            <i class="fa-solid fa-trash"></i>
-                                        </button>
-                                    </div>
-                                {{/each}}
-                            </div>
-                        {{else}}
-                            <p class="artisan-component-panel__empty">{{localize 'ARTISAN.NoRequiredTools'}}</p>
-                        {{/if}}
-                    </section>
-
-                    <section class="artisan-component-panel" data-artisan-drop-zone data-recipe-id="{{selectedRecipe.id}}" data-collection="outputs">
-                        <header class="artisan-component-panel__header">
-                            <h3>{{localize 'ARTISAN.Output'}}</h3>
-                            <span>{{localize 'ARTISAN.DropItemOrUuid'}}</span>
-                        </header>
-
-                        <div class="artisan-component-add">
-                            <input type="text" placeholder="{{localize 'ARTISAN.ItemUuidPlaceholder'}}" data-artisan-component-uuid>
-                            <input type="number" min="1" step="1" value="1" data-artisan-component-quantity>
-                            <button type="button" class="artisan-small-button" data-artisan-add-component data-recipe-id="{{selectedRecipe.id}}" data-collection="outputs">
-                                <i class="fa-solid fa-plus"></i>
-                                {{localize 'ARTISAN.Add'}}
-                            </button>
-                        </div>
-
-                        {{#if selectedRecipe.outputs.length}}
-                            <div class="artisan-component-list">
-                                {{#each selectedRecipe.outputs}}
-                                    <div class="artisan-component-row {{#unless found}}is-missing{{/unless}}">
-                                        <img src="{{img}}" alt="{{name}}">
-                                        <button type="button" class="artisan-component-row__main" data-artisan-open-component data-uuid="{{uuid}}" title="{{localize 'ARTISAN.OpenItem'}}">
-                                            <strong>{{name}}</strong>
-                                            <code>{{uuid}}</code>
-                                        </button>
-                                        <input type="number" min="1" step="1" value="{{quantity}}" class="artisan-component-row__quantity" data-artisan-component-row-quantity data-recipe-id="{{recipeId}}" data-collection="{{collection}}" data-index="{{index}}">
-                                        <button type="button" class="artisan-icon-button" data-artisan-open-component data-uuid="{{uuid}}" title="{{localize 'ARTISAN.Open'}}">
-                                            <i class="fa-solid fa-up-right-from-square"></i>
-                                        </button>
-                                        <button type="button" class="artisan-icon-button" data-artisan-remove-component data-recipe-id="{{recipeId}}" data-collection="{{collection}}" data-index="{{index}}" title="{{localize 'ARTISAN.Remove'}}">
-                                            <i class="fa-solid fa-trash"></i>
-                                        </button>
-                                    </div>
-                                {{/each}}
-                            </div>
-                        {{else}}
-                            <p class="artisan-component-panel__empty">{{localize 'ARTISAN.NoOutput'}}</p>
-                        {{/if}}
                     </section>
 
                     <section class="artisan-inspector__summary">
@@ -902,6 +1111,18 @@
                             </div>
 
                             <div class="artisan-inspector__header-actions">
+                                <label class="artisan-attempt-hours">
+                                    <span>{{localize 'ARTISAN.ForagingAttemptHours'}}</span>
+                                    <input
+                                        type="number"
+                                        value="{{selectedForagingProfile.time}}"
+                                        min="0.25"
+                                        step="0.25"
+                                        data-artisan-foraging-attempt-hours
+                                        data-profile-id="{{selectedForagingProfile.id}}"
+                                        title="{{localize 'ARTISAN.ForagingAttemptHoursHelp'}}"
+                                    >
+                                </label>
                                 <button
                                     type="button"
                                     class="artisan-button"
@@ -979,8 +1200,9 @@
                             </div>
 
                             <div class="artisan-inspector__field">
-                                <label>{{localize 'ARTISAN.TimeHours'}}</label>
+                                <label>{{localize 'ARTISAN.ForagingBaseHours'}}</label>
                                 <input type="number" value="{{selectedForagingProfile.time}}" min="0" step="0.25" data-artisan-foraging-field="time" data-profile-id="{{selectedForagingProfile.id}}">
+                                <small>{{localize 'ARTISAN.ForagingBaseHoursHelp'}}</small>
                             </div>
 
                             <div class="artisan-inspector__field">
@@ -1014,19 +1236,40 @@
                                 <span>{{localize 'ARTISAN.DropItemFromCompendiumOrWorld'}}</span>
                             </header>
 
-                            <div class="artisan-component-add artisan-foraging-resource-add">
-                                <input type="text" placeholder="{{localize 'ARTISAN.ResourceUuid'}}" data-artisan-foraging-component-uuid>
-                                <select title="{{localize 'ARTISAN.DiscoveryRarityTitle'}}" data-artisan-foraging-component-rarity>
-                                    <option value="common">{{localize 'ARTISAN.Common'}}</option>
-                                    <option value="uncommon">{{localize 'ARTISAN.Uncommon'}}</option>
-                                    <option value="rare">{{localize 'ARTISAN.Rare'}}</option>
-                                    <option value="veryRare">{{localize 'ARTISAN.VeryRare'}}</option>
-                                    <option value="legendary">{{localize 'ARTISAN.Legendary'}}</option>
-                                </select>
-                                <input type="number" min="0.1" step="0.1" title="{{localize 'ARTISAN.ManualProbabilityTitle'}}" placeholder="{{localize 'ARTISAN.Probability'}}" data-artisan-foraging-component-weight>
-                                <input type="number" min="1" step="1" value="1" title="{{localize 'ARTISAN.MinQuantity'}}" placeholder="{{localize 'ARTISAN.Min'}}" data-artisan-foraging-component-min-quantity>
-                                <input type="number" min="1" step="1" value="1" title="{{localize 'ARTISAN.MaxQuantity'}}" placeholder="{{localize 'ARTISAN.Max'}}" data-artisan-foraging-component-max-quantity>
-                                <button type="button" class="artisan-small-button" data-artisan-foraging-add-component data-profile-id="{{selectedForagingProfile.id}}" data-collection="resources">
+                            <div class="artisan-component-add artisan-resource-add-card artisan-resource-add-card--foraging">
+                                <label class="artisan-add-field artisan-add-field--wide">
+                                    <span>{{localize 'ARTISAN.AddResourceField'}}</span>
+                                    <div class="artisan-item-picker-field">
+                                        <input type="text" placeholder="{{localize 'ARTISAN.ResourceUuid'}}" data-artisan-foraging-component-uuid data-artisan-picker-target>
+                                        <button type="button" class="artisan-item-picker-button" data-artisan-pick-item data-artisan-picker-kinds="Item,Actor">
+                                            <i class="fa-solid fa-box-open"></i>
+                                            <span>{{localize 'ARTISAN.SelectItemOrActor'}}</span>
+                                        </button>
+                                    </div>
+                                </label>
+                                <label class="artisan-add-field">
+                                    <span>{{localize 'ARTISAN.Rarity'}}</span>
+                                    <select title="{{localize 'ARTISAN.DiscoveryRarityTitle'}}" data-artisan-foraging-component-rarity>
+                                        <option value="common">{{localize 'ARTISAN.Common'}}</option>
+                                        <option value="uncommon">{{localize 'ARTISAN.Uncommon'}}</option>
+                                        <option value="rare">{{localize 'ARTISAN.Rare'}}</option>
+                                        <option value="veryRare">{{localize 'ARTISAN.VeryRare'}}</option>
+                                        <option value="legendary">{{localize 'ARTISAN.Legendary'}}</option>
+                                    </select>
+                                </label>
+                                <label class="artisan-add-field">
+                                    <span>{{localize 'ARTISAN.ProbabilityShort'}}</span>
+                                    <input type="number" min="0.1" step="0.1" title="{{localize 'ARTISAN.ManualProbabilityTitle'}}" placeholder="{{localize 'ARTISAN.Probability'}}" data-artisan-foraging-component-weight>
+                                </label>
+                                <label class="artisan-add-field artisan-add-field--small">
+                                    <span>{{localize 'ARTISAN.Min'}}</span>
+                                    <input type="number" min="1" step="1" value="1" title="{{localize 'ARTISAN.MinQuantity'}}" data-artisan-foraging-component-min-quantity>
+                                </label>
+                                <label class="artisan-add-field artisan-add-field--small">
+                                    <span>{{localize 'ARTISAN.Max'}}</span>
+                                    <input type="number" min="1" step="1" value="1" title="{{localize 'ARTISAN.MaxQuantity'}}" data-artisan-foraging-component-max-quantity>
+                                </label>
+                                <button type="button" class="artisan-small-button artisan-resource-add-button" data-artisan-foraging-add-component data-profile-id="{{selectedForagingProfile.id}}" data-collection="resources">
                                     <i class="fa-solid fa-plus"></i>
                                     {{localize 'ARTISAN.Add'}}
                                 </button>
@@ -1035,7 +1278,7 @@
                             {{#if selectedForagingProfile.resources.length}}
                                 <div class="artisan-component-list">
                                     {{#each selectedForagingProfile.resources}}
-                                        <div class="artisan-component-row artisan-foraging-row artisan-foraging-resource-row {{#unless found}}is-missing{{/unless}}">
+                                        <div class="artisan-component-row artisan-foraging-row artisan-foraging-resource-row artisan-resource-card {{#unless found}}is-missing{{/unless}}">
                                             <img src="{{img}}" alt="{{name}}">
                                             <div class="artisan-component-row__main">
                                                 <strong>{{name}}</strong>
@@ -1119,7 +1362,13 @@
                             </header>
 
                             <div class="artisan-component-add">
-                                <input type="text" placeholder="{{localize 'ARTISAN.ToolUuid'}}" data-artisan-foraging-component-uuid>
+                                <div class="artisan-item-picker-field artisan-item-picker-field--inline">
+                                    <input type="text" placeholder="{{localize 'ARTISAN.ToolUuid'}}" data-artisan-foraging-component-uuid data-artisan-picker-target>
+                                    <button type="button" class="artisan-item-picker-button" data-artisan-pick-item data-artisan-picker-kinds="Item">
+                                        <i class="fa-solid fa-toolbox"></i>
+                                        <span>{{localize 'ARTISAN.SelectTool'}}</span>
+                                    </button>
+                                </div>
                                 <span class="artisan-inline-note">{{localize 'ARTISAN.RollBonusEqualsProficiency'}}</span>
                                 <button type="button" class="artisan-small-button" data-artisan-foraging-add-component data-profile-id="{{selectedForagingProfile.id}}" data-collection="tools">
                                     <i class="fa-solid fa-plus"></i>
@@ -1352,20 +1601,54 @@
 
                             <p class="artisan-muted-note">{{localize 'ARTISAN.RarityRiskNote'}}</p>
 
-                            <div class="artisan-component-add artisan-harvest-resource-add">
-                                <input type="text" placeholder="{{localize 'ARTISAN.PartUuid'}}" data-artisan-harvest-component-uuid>
-                                <input type="text" placeholder="{{localize 'ARTISAN.OptionalRequiredToolUuid'}}" title="{{localize 'ARTISAN.RequiredToolTitle'}}" data-artisan-harvest-component-required-tool-uuid>
-                                <select title="{{localize 'ARTISAN.PartRarity'}}" data-artisan-harvest-component-rarity>
-                                    <option value="common">{{localize 'ARTISAN.Common'}}</option>
-                                    <option value="uncommon">{{localize 'ARTISAN.Uncommon'}}</option>
-                                    <option value="rare">{{localize 'ARTISAN.Rare'}}</option>
-                                    <option value="veryRare">{{localize 'ARTISAN.VeryRare'}}</option>
-                                    <option value="legendary">{{localize 'ARTISAN.Legendary'}}</option>
-                                </select>
-                                <input type="number" min="0.1" step="0.1" title="{{localize 'ARTISAN.ImportedWeightEditable'}}" placeholder="{{localize 'ARTISAN.AutoWeight'}}" data-artisan-harvest-component-weight>
-                                <input type="number" min="1" step="1" value="1" title="{{localize 'ARTISAN.MinQuantity'}}" placeholder="{{localize 'ARTISAN.Min'}}" data-artisan-harvest-component-min-quantity>
-                                <input type="number" min="1" step="1" value="1" title="{{localize 'ARTISAN.MaxQuantity'}}" placeholder="{{localize 'ARTISAN.Max'}}" data-artisan-harvest-component-max-quantity>
-                                <button type="button" class="artisan-small-button" data-artisan-harvest-add-component data-profile-id="{{selectedHarvestProfile.id}}" data-collection="resources">
+                            <div class="artisan-component-add artisan-resource-add-card artisan-resource-add-card--harvest">
+                                <label class="artisan-add-field artisan-add-field--wide">
+                                    <span>{{localize 'ARTISAN.AddPartField'}}</span>
+                                    <div class="artisan-item-picker-field">
+                                        <input type="text" placeholder="{{localize 'ARTISAN.PartUuid'}}" data-artisan-harvest-component-uuid data-artisan-picker-target>
+                                        <button type="button" class="artisan-item-picker-button" data-artisan-pick-item data-artisan-picker-kinds="Item,Actor">
+                                            <i class="fa-solid fa-box-open"></i>
+                                            <span>{{localize 'ARTISAN.SelectItemOrActor'}}</span>
+                                        </button>
+                                    </div>
+                                </label>
+                                <label class="artisan-add-field artisan-add-field--tool">
+                                    <span>{{localize 'ARTISAN.RequiredTool'}}</span>
+                                    <div class="artisan-item-picker-field">
+                                        <input type="text" placeholder="{{localize 'ARTISAN.OptionalRequiredToolUuid'}}" title="{{localize 'ARTISAN.RequiredToolTitle'}}" data-artisan-harvest-component-required-tool-uuid data-artisan-picker-target>
+                                        <button type="button" class="artisan-item-picker-button" data-artisan-pick-item data-artisan-picker-kinds="Item">
+                                            <i class="fa-solid fa-toolbox"></i>
+                                            <span>{{localize 'ARTISAN.SelectToolOptional'}}</span>
+                                        </button>
+                                    </div>
+                                </label>
+                                <label class="artisan-add-field">
+                                    <span>{{localize 'ARTISAN.Rarity'}}</span>
+                                    <select title="{{localize 'ARTISAN.PartRarity'}}" data-artisan-harvest-component-rarity>
+                                        <option value="common">{{localize 'ARTISAN.Common'}}</option>
+                                        <option value="uncommon">{{localize 'ARTISAN.Uncommon'}}</option>
+                                        <option value="rare">{{localize 'ARTISAN.Rare'}}</option>
+                                        <option value="veryRare">{{localize 'ARTISAN.VeryRare'}}</option>
+                                        <option value="legendary">{{localize 'ARTISAN.Legendary'}}</option>
+                                    </select>
+                                </label>
+                                <label class="artisan-add-field">
+                                    <span>{{localize 'ARTISAN.ProbabilityShort'}}</span>
+                                    <input type="number" min="0.1" step="0.1" title="{{localize 'ARTISAN.ImportedWeightEditable'}}" placeholder="{{localize 'ARTISAN.AutoWeight'}}" data-artisan-harvest-component-weight>
+                                </label>
+                                <label class="artisan-add-field artisan-add-field--small">
+                                    <span>{{localize 'ARTISAN.Min'}}</span>
+                                    <input type="number" min="1" step="1" value="1" title="{{localize 'ARTISAN.MinQuantity'}}" data-artisan-harvest-component-min-quantity>
+                                </label>
+                                <label class="artisan-add-field artisan-add-field--small">
+                                    <span>{{localize 'ARTISAN.Max'}}</span>
+                                    <input type="number" min="1" step="1" value="1" title="{{localize 'ARTISAN.MaxQuantity'}}" data-artisan-harvest-component-max-quantity>
+                                </label>
+                                <label class="artisan-add-field artisan-add-field--small artisan-add-field--xp">
+                                    <span>{{localize 'ARTISAN.XpPerUnit'}}</span>
+                                    <input type="number" min="0" step="1" value="1" title="{{localize 'ARTISAN.HuntingXpPerUnitTitle'}}" data-artisan-harvest-component-xp>
+                                </label>
+                                <button type="button" class="artisan-small-button artisan-resource-add-button" data-artisan-harvest-add-component data-profile-id="{{selectedHarvestProfile.id}}" data-collection="resources">
                                     <i class="fa-solid fa-plus"></i>
                                     {{localize 'ARTISAN.Add'}}
                                 </button>
@@ -1374,7 +1657,7 @@
                             {{#if selectedHarvestProfile.resources.length}}
                                 <div class="artisan-component-list">
                                     {{#each selectedHarvestProfile.resources}}
-                                        <div class="artisan-component-row artisan-harvest-row artisan-harvest-resource-row {{#unless found}}is-missing{{/unless}}">
+                                        <div class="artisan-component-row artisan-harvest-row artisan-harvest-resource-row artisan-resource-card artisan-resource-card--harvest {{#unless found}}is-missing{{/unless}}">
                                             <img src="{{img}}" alt="{{name}}">
                                             <div class="artisan-component-row__main">
                                                 <strong>{{name}}</strong>
@@ -1441,18 +1724,38 @@
                                                 >
                                             </label>
 
-                                            <label class="artisan-harvest-edit-field artisan-harvest-required-tool-field" title="{{localize 'ARTISAN.RequiredToolUuidTitle'}}">
-                                                <span>{{localize 'ARTISAN.RequiredTool'}}</span>
+                                            <label class="artisan-harvest-edit-field" title="{{localize 'ARTISAN.HuntingXpPerUnitTitle'}}">
+                                                <span>XP/unità</span>
                                                 <input
-                                                    type="text"
-                                                    value="{{requiredToolUuid}}"
-                                                    placeholder="{{localize 'ARTISAN.None'}}"
-                                                    data-artisan-harvest-component-field="requiredToolUuid"
+                                                    type="number"
+                                                    min="0"
+                                                    step="1"
+                                                    value="{{xp}}"
+                                                    data-artisan-harvest-component-field="xp"
                                                     data-profile-id="{{profileId}}"
                                                     data-collection="{{collection}}"
                                                     data-index="{{index}}"
                                                 >
-                                                <small>{{requiredToolName}}</small>
+                                            </label>
+
+                                            <label class="artisan-harvest-edit-field artisan-harvest-required-tool-field" title="{{localize 'ARTISAN.RequiredToolUuidTitle'}}">
+                                                <span>{{localize 'ARTISAN.RequiredTool'}}</span>
+                                                <div class="artisan-item-picker-field artisan-item-picker-field--existing">
+                                                    <input
+                                                        type="text"
+                                                        value="{{requiredToolUuid}}"
+                                                        placeholder="{{localize 'ARTISAN.None'}}"
+                                                        data-artisan-harvest-component-field="requiredToolUuid"
+                                                        data-profile-id="{{profileId}}"
+                                                        data-collection="{{collection}}"
+                                                        data-index="{{index}}"
+                                                        data-artisan-picker-target
+                                                    >
+                                                    <button type="button" class="artisan-item-picker-button" data-artisan-pick-item data-artisan-picker-kinds="Item" data-current-name="{{requiredToolName}}">
+                                                        <i class="fa-solid fa-toolbox"></i>
+                                                        <span>{{#if requiredToolName}}{{requiredToolName}}{{else}}{{localize 'ARTISAN.SelectToolOptional'}}{{/if}}</span>
+                                                    </button>
+                                                </div>
                                             </label>
 
                                             <button type="button" class="artisan-icon-button" data-artisan-harvest-remove-component data-profile-id="{{profileId}}" data-collection="{{collection}}" data-index="{{index}}" title="{{localize 'ARTISAN.Remove'}}">
@@ -1473,7 +1776,13 @@
                             </header>
 
                             <div class="artisan-component-add">
-                                <input type="text" placeholder="{{localize 'ARTISAN.ToolUuid'}}" data-artisan-harvest-component-uuid>
+                                <div class="artisan-item-picker-field artisan-item-picker-field--inline">
+                                    <input type="text" placeholder="{{localize 'ARTISAN.ToolUuid'}}" data-artisan-harvest-component-uuid data-artisan-picker-target>
+                                    <button type="button" class="artisan-item-picker-button" data-artisan-pick-item data-artisan-picker-kinds="Item">
+                                        <i class="fa-solid fa-toolbox"></i>
+                                        <span>{{localize 'ARTISAN.SelectTool'}}</span>
+                                    </button>
+                                </div>
                                 <span class="artisan-inline-note">{{localize 'ARTISAN.RollBonusEqualsProficiency'}}</span>
                                 <button type="button" class="artisan-small-button" data-artisan-harvest-add-component data-profile-id="{{selectedHarvestProfile.id}}" data-collection="tools">
                                     <i class="fa-solid fa-plus"></i>
@@ -1585,7 +1894,14 @@
 
                             <div class="artisan-inspector__field">
                                 <label>{{localize 'ARTISAN.SourceResource'}}</label>
-                                <input type="text" value="{{selectedDisassemblyProfile.sourceUuid}}" placeholder="{{localize 'ARTISAN.SourceItemUuid'}}" data-artisan-disassembly-field="sourceUuid" data-profile-id="{{selectedDisassemblyProfile.id}}">
+                                <div class="artisan-source-selection-summary {{#unless selectedDisassemblyProfile.sourceFound}}is-missing{{/unless}}">
+                                    <img src="{{selectedDisassemblyProfile.sourceImg}}" alt="{{selectedDisassemblyProfile.sourceName}}">
+                                    <strong>{{#if selectedDisassemblyProfile.sourceName}}{{selectedDisassemblyProfile.sourceName}}{{else}}{{localize 'ARTISAN.NoSource'}}{{/if}}</strong>
+                                    <button type="button" class="artisan-small-button" data-artisan-pick-disassembly-source data-profile-id="{{selectedDisassemblyProfile.id}}">
+                                        <i class="fa-solid fa-box-open"></i>
+                                        {{localize 'ARTISAN.SelectSourceItem'}}
+                                    </button>
+                                </div>
                                 <small>{{localize 'ARTISAN.SourceResourceHelp'}}</small>
                             </div>
 
@@ -1659,7 +1975,7 @@
                                 <span>{{localize 'ARTISAN.DropSourceItem'}}</span>
                             </header>
 
-                            <div class="artisan-component-row {{#unless selectedDisassemblyProfile.sourceFound}}is-missing{{/unless}}">
+                            <div class="artisan-component-row artisan-disassembly-source-row {{#unless selectedDisassemblyProfile.sourceFound}}is-missing{{/unless}}">
                                 <img src="{{selectedDisassemblyProfile.sourceImg}}" alt="{{selectedDisassemblyProfile.sourceName}}">
                                 <div class="artisan-component-row__main">
                                     <strong>{{#if selectedDisassemblyProfile.sourceName}}{{selectedDisassemblyProfile.sourceName}}{{else}}{{localize 'ARTISAN.NoSource'}}{{/if}}</strong>
@@ -1675,19 +1991,40 @@
                                 <span>{{localize 'ARTISAN.DropObtainableMaterials'}}</span>
                             </header>
 
-                            <div class="artisan-component-add artisan-harvest-resource-add">
-                                <input type="text" placeholder="{{localize 'ARTISAN.MaterialUuid'}}" data-artisan-disassembly-component-uuid>
-                                <select title="{{localize 'ARTISAN.DiscoveryRarityTitle'}}" data-artisan-disassembly-component-rarity>
-                                    <option value="common">{{localize 'ARTISAN.Common'}}</option>
-                                    <option value="uncommon">{{localize 'ARTISAN.Uncommon'}}</option>
-                                    <option value="rare">{{localize 'ARTISAN.Rare'}}</option>
-                                    <option value="veryRare">{{localize 'ARTISAN.VeryRare'}}</option>
-                                    <option value="legendary">{{localize 'ARTISAN.Legendary'}}</option>
-                                </select>
-                                <input type="number" min="0.1" step="0.1" title="{{localize 'ARTISAN.ManualProbabilityTitle'}}" placeholder="{{localize 'ARTISAN.Probability'}}" data-artisan-disassembly-component-weight>
-                                <input type="number" min="1" step="1" value="1" title="{{localize 'ARTISAN.MinQuantity'}}" placeholder="{{localize 'ARTISAN.Min'}}" data-artisan-disassembly-component-min-quantity>
-                                <input type="number" min="1" step="1" value="1" title="{{localize 'ARTISAN.MaxQuantity'}}" placeholder="{{localize 'ARTISAN.Max'}}" data-artisan-disassembly-component-max-quantity>
-                                <button type="button" class="artisan-small-button" data-artisan-disassembly-add-component data-profile-id="{{selectedDisassemblyProfile.id}}" data-collection="resources">
+                            <div class="artisan-component-add artisan-resource-add-card artisan-resource-add-card--disassembly">
+                                <label class="artisan-add-field artisan-add-field--wide">
+                                    <span>{{localize 'ARTISAN.AddMaterialField'}}</span>
+                                    <div class="artisan-item-picker-field">
+                                        <input type="text" placeholder="{{localize 'ARTISAN.MaterialUuid'}}" data-artisan-disassembly-component-uuid data-artisan-picker-target>
+                                        <button type="button" class="artisan-item-picker-button" data-artisan-pick-item data-artisan-picker-kinds="Item,Actor">
+                                            <i class="fa-solid fa-box-open"></i>
+                                            <span>{{localize 'ARTISAN.SelectItemOrActor'}}</span>
+                                        </button>
+                                    </div>
+                                </label>
+                                <label class="artisan-add-field">
+                                    <span>{{localize 'ARTISAN.Rarity'}}</span>
+                                    <select title="{{localize 'ARTISAN.DiscoveryRarityTitle'}}" data-artisan-disassembly-component-rarity>
+                                        <option value="common">{{localize 'ARTISAN.Common'}}</option>
+                                        <option value="uncommon">{{localize 'ARTISAN.Uncommon'}}</option>
+                                        <option value="rare">{{localize 'ARTISAN.Rare'}}</option>
+                                        <option value="veryRare">{{localize 'ARTISAN.VeryRare'}}</option>
+                                        <option value="legendary">{{localize 'ARTISAN.Legendary'}}</option>
+                                    </select>
+                                </label>
+                                <label class="artisan-add-field">
+                                    <span>{{localize 'ARTISAN.ProbabilityShort'}}</span>
+                                    <input type="number" min="0.1" step="0.1" title="{{localize 'ARTISAN.ManualProbabilityTitle'}}" placeholder="{{localize 'ARTISAN.Probability'}}" data-artisan-disassembly-component-weight>
+                                </label>
+                                <label class="artisan-add-field artisan-add-field--small">
+                                    <span>{{localize 'ARTISAN.Min'}}</span>
+                                    <input type="number" min="1" step="1" value="1" title="{{localize 'ARTISAN.MinQuantity'}}" data-artisan-disassembly-component-min-quantity>
+                                </label>
+                                <label class="artisan-add-field artisan-add-field--small">
+                                    <span>{{localize 'ARTISAN.Max'}}</span>
+                                    <input type="number" min="1" step="1" value="1" title="{{localize 'ARTISAN.MaxQuantity'}}" data-artisan-disassembly-component-max-quantity>
+                                </label>
+                                <button type="button" class="artisan-small-button artisan-resource-add-button" data-artisan-disassembly-add-component data-profile-id="{{selectedDisassemblyProfile.id}}" data-collection="resources">
                                     <i class="fa-solid fa-plus"></i>
                                     {{localize 'ARTISAN.Add'}}
                                 </button>
@@ -1696,7 +2033,7 @@
                             {{#if selectedDisassemblyProfile.resources.length}}
                                 <div class="artisan-component-list">
                                     {{#each selectedDisassemblyProfile.resources}}
-                                        <div class="artisan-component-row artisan-harvest-row artisan-harvest-resource-row {{#unless found}}is-missing{{/unless}}">
+                                        <div class="artisan-component-row artisan-harvest-row artisan-harvest-resource-row artisan-resource-card artisan-resource-card--disassembly {{#unless found}}is-missing{{/unless}}">
                                             <img src="{{img}}" alt="{{name}}">
                                             <div class="artisan-component-row__main">
                                                 <strong>{{name}}</strong>
@@ -1754,7 +2091,13 @@
                             </header>
 
                             <div class="artisan-component-add">
-                                <input type="text" placeholder="{{localize 'ARTISAN.ToolUuid'}}" data-artisan-disassembly-component-uuid>
+                                <div class="artisan-item-picker-field artisan-item-picker-field--inline">
+                                    <input type="text" placeholder="{{localize 'ARTISAN.ToolUuid'}}" data-artisan-disassembly-component-uuid data-artisan-picker-target>
+                                    <button type="button" class="artisan-item-picker-button" data-artisan-pick-item data-artisan-picker-kinds="Item">
+                                        <i class="fa-solid fa-toolbox"></i>
+                                        <span>{{localize 'ARTISAN.SelectTool'}}</span>
+                                    </button>
+                                </div>
                                 <span class="artisan-inline-note">{{localize 'ARTISAN.RollBonusEqualsProficiency'}}</span>
                                 <button type="button" class="artisan-small-button" data-artisan-disassembly-add-component data-profile-id="{{selectedDisassemblyProfile.id}}" data-collection="tools">
                                     <i class="fa-solid fa-plus"></i>

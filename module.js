@@ -1,3 +1,99 @@
+// src/ui/artisan-item-reference.ts
+var ArtisanItemReference = class {
+  static FALLBACK_IMG = "icons/svg/item-bag.svg";
+  static async resolve(uuid) {
+    const cleanUuid = String(uuid ?? "").trim();
+    if (!cleanUuid) return null;
+    try {
+      return await fromUuid(cleanUuid);
+    } catch (_error) {
+      return null;
+    }
+  }
+  static async toView(uuid, extra = {}) {
+    const cleanUuid = String(uuid ?? "").trim();
+    const document2 = await this.resolve(cleanUuid);
+    return {
+      ...extra,
+      uuid: cleanUuid,
+      name: document2?.name ?? cleanUuid,
+      img: document2?.img ?? this.FALLBACK_IMG,
+      documentType: document2?.documentName ?? "",
+      type: document2?.type ?? "",
+      found: Boolean(document2)
+    };
+  }
+  static normalizeKinds(value) {
+    const raw = Array.isArray(value) ? value : String(value ?? "Item").split(",");
+    const allowed = new Set(["Item", "Actor"]);
+    const kinds = raw.map((entry) => String(entry).trim()).filter((entry) => allowed.has(entry));
+    return kinds.length ? Array.from(new Set(kinds)) : ["Item"];
+  }
+  static getEntryUuid(pack, entry) {
+    if (entry?.uuid) return String(entry.uuid);
+    const id = entry?._id ?? entry?.id;
+    if (!id) return "";
+    return `Compendium.${pack.collection}.${pack.documentName}.${id}`;
+  }
+  static toPickerChoice(document2, sourceLabel, sourceKind = "world") {
+    return {
+      uuid: String(document2?.uuid ?? ""),
+      name: String(document2?.name ?? "Senza nome"),
+      img: document2?.img ?? this.FALLBACK_IMG,
+      documentType: String(document2?.documentName ?? "Item"),
+      type: String(document2?.type ?? ""),
+      source: sourceLabel,
+      sourceKind
+    };
+  }
+  static async buildPickerChoices(kindsValue) {
+    const kinds = this.normalizeKinds(kindsValue);
+    const choices = [];
+    if (kinds.includes("Item")) {
+      for (const item of Array.from(game.items ?? [])) {
+        choices.push(this.toPickerChoice(item, game.i18n.localize("ARTISAN.ItemPickerWorld"), "world"));
+      }
+    }
+    if (kinds.includes("Actor")) {
+      for (const actor of Array.from(game.actors ?? [])) {
+        choices.push(this.toPickerChoice(actor, game.i18n.localize("ARTISAN.ItemPickerWorld"), "world"));
+      }
+    }
+    const packs = Array.from(game.packs ?? []).filter((pack) => kinds.includes(String(pack.documentName ?? "")));
+    const indexes = await Promise.all(packs.map(async (pack) => {
+      try {
+        const index = await pack.getIndex({ fields: ["name", "img", "type"] });
+        return { pack, entries: Array.from(index ?? []) };
+      } catch (error) {
+        console.warn(`Artisan | Impossibile indicizzare il compendio ${pack.collection}.`, error);
+        return { pack, entries: [] };
+      }
+    }));
+    for (const { pack, entries } of indexes) {
+      const source = String(pack.metadata?.label ?? pack.title ?? pack.collection ?? game.i18n.localize("ARTISAN.ItemPickerCompendium"));
+      for (const entry of entries) {
+        const uuid = this.getEntryUuid(pack, entry);
+        if (!uuid) continue;
+        choices.push({
+          uuid,
+          name: String(entry.name ?? "Senza nome"),
+          img: entry.img ?? this.FALLBACK_IMG,
+          documentType: String(pack.documentName ?? "Item"),
+          type: String(entry.type ?? ""),
+          source,
+          sourceKind: "compendium"
+        });
+      }
+    }
+    const seen = new Set();
+    return choices.filter((choice) => {
+      if (!choice.uuid || seen.has(choice.uuid)) return false;
+      seen.add(choice.uuid);
+      return true;
+    }).sort((a, b) => a.name.localeCompare(b.name, game.i18n.lang ?? undefined, { sensitivity: "base" }));
+  }
+};
+
 // src/documents/recipe-document.ts
 var RecipeDocument = class {
   static FLAG_SCOPE = "artisan";
@@ -10,6 +106,7 @@ var RecipeDocument = class {
   static getDefaultData() {
     return {
       category: "",
+      subcategory: "",
       profile: "",
       difficulty: 0,
       craftingTime: 0,
@@ -51,6 +148,7 @@ var RecipeDocument = class {
     };
     return {
       category: String(merged.category ?? ""),
+      subcategory: String(merged.subcategory ?? ""),
       profile: String(merged.profile ?? ""),
       difficulty: Number(merged.difficulty ?? 0),
       craftingTime: Math.max(0, Number(merged.craftingTime ?? 0)),
@@ -76,9 +174,9 @@ var RecipeDocument = class {
       qualityEffectExcellent: this.normalizeQualityEffectType(merged.qualityEffectExcellent ?? "auto"),
       skill: String(merged.skill ?? ""),
       dc: Number(merged.dc ?? 10),
-      ingredients: this.normalizeComponents(merged.ingredients),
-      tools: this.normalizeComponents(merged.tools),
-      outputs: this.normalizeComponents(merged.outputs)
+      ingredients: this.normalizeComponents(merged.ingredients, "ingredients"),
+      tools: this.normalizeComponents(merged.tools, "tools"),
+      outputs: this.normalizeComponents(merged.outputs, "outputs")
     };
   }
   static async create() {
@@ -109,10 +207,17 @@ var RecipeDocument = class {
   }
   static async addComponent(item, collection, component) {
     const current = this.getData(item);
-    const nextComponent = this.normalizeComponent(component);
     const nextCollection = [...current[collection]];
+    const nextComponent = this.normalizeComponent(
+      component,
+      collection,
+      collection === "ingredients" ? this.getNextIngredientGroup(current.ingredients) : 0
+    );
     const existingIndex = nextCollection.findIndex((entry) => {
-      return entry.uuid === nextComponent.uuid;
+      return entry.uuid === nextComponent.uuid && (
+        collection !== "ingredients" ||
+        Number(entry.ingredientGroup ?? 0) === Number(nextComponent.ingredientGroup ?? 0)
+      );
     });
     if (existingIndex >= 0) {
       const existing = nextCollection[existingIndex];
@@ -132,6 +237,33 @@ var RecipeDocument = class {
         [collection]: nextCollection
       }
     );
+  }
+  static getNextIngredientGroup(ingredients) {
+    if (!Array.isArray(ingredients) || ingredients.length === 0) {
+      return 1;
+    }
+    return Math.max(
+      0,
+      ...ingredients.map((entry, index) => {
+        const group = Number(entry?.ingredientGroup ?? index + 1);
+        return Number.isFinite(group) && group > 0 ? Math.floor(group) : index + 1;
+      })
+    ) + 1;
+  }
+  static async updateComponentGroup(item, collection, index, group) {
+    if (collection !== "ingredients") {
+      return;
+    }
+    const current = this.getData(item);
+    const nextCollection = [...current[collection]];
+    if (!nextCollection[index]) {
+      return;
+    }
+    nextCollection[index] = {
+      ...nextCollection[index],
+      ingredientGroup: Math.max(1, Math.floor(Number(group || 1)))
+    };
+    await this.setRecipeData(item, { [collection]: nextCollection });
   }
   static async updateComponentQuantity(item, collection, index, quantity) {
     const current = this.getData(item);
@@ -166,6 +298,7 @@ var RecipeDocument = class {
     return {
       id: item.id ?? "",
       label: item.name ?? "Senza nome",
+      img: item.img ?? "icons/svg/book.svg",
       icon: "fa-solid fa-scroll"
     };
   }
@@ -193,6 +326,7 @@ var RecipeDocument = class {
       img: item.img,
       type: item.type,
       category: recipe.category,
+      subcategory: recipe.subcategory,
       profile: recipe.profile,
       difficulty: recipe.difficulty,
       craftingTime: recipe.craftingTime,
@@ -221,6 +355,7 @@ var RecipeDocument = class {
       ingredients,
       tools,
       outputs,
+      nextIngredientGroup: this.getNextIngredientGroup(recipe.ingredients),
       ingredientCount: ingredients.length,
       toolCount: tools.length,
       outputCount: outputs.length
@@ -282,18 +417,24 @@ var RecipeDocument = class {
     ]);
     return allowed.has(raw) ? raw : "auto";
   }
-  static normalizeComponents(components) {
+  static normalizeComponents(components, collection = "") {
     if (!Array.isArray(components)) {
       return [];
     }
-    return components.map((component) => {
-      return this.normalizeComponent(component);
+    return components.map((component, index) => {
+      return this.normalizeComponent(
+        component,
+        collection,
+        collection === "ingredients" ? index + 1 : 0
+      );
     });
   }
-  static normalizeComponent(component) {
+  static normalizeComponent(component, collection = "", defaultGroup = 0) {
+    const rawGroup = Number(component?.ingredientGroup ?? defaultGroup);
     return {
       uuid: String(component.uuid ?? "").trim(),
-      quantity: Math.max(1, Number(component.quantity ?? 1))
+      quantity: Math.max(1, Number(component.quantity ?? 1)),
+      ingredientGroup: collection === "ingredients" ? Math.max(1, Number.isFinite(rawGroup) && rawGroup > 0 ? Math.floor(rawGroup) : Math.max(1, defaultGroup)) : 0
     };
   }
   static async toComponentViews(item, collection, components) {
@@ -308,32 +449,13 @@ var RecipeDocument = class {
     return Promise.all(views);
   }
   static async toComponentView(item, collection, component, index) {
-    const fallback = {
+    return ArtisanItemReference.toView(component.uuid, {
       index,
       recipeId: item.id ?? "",
       collection,
-      uuid: component.uuid,
       quantity: component.quantity,
-      name: component.uuid,
-      img: "icons/svg/item-bag.svg",
-      documentType: "",
-      found: false
-    };
-    try {
-      const document2 = await fromUuid(component.uuid);
-      if (!document2) {
-        return fallback;
-      }
-      return {
-        ...fallback,
-        name: document2.name ?? component.uuid,
-        img: document2.img ?? "icons/svg/item-bag.svg",
-        documentType: document2.documentName ?? "",
-        found: true
-      };
-    } catch (_error) {
-      return fallback;
-    }
+      ingredientGroup: component.ingredientGroup ?? 0
+    });
   }
 };
 
@@ -924,6 +1046,7 @@ var CraftingService = class {
       collectionLabel,
       uuid: component.uuid,
       quantity: component.quantity,
+      ingredientGroup: component.ingredientGroup ?? 0,
       name: component.uuid,
       found: false,
       isItem: false,
@@ -946,6 +1069,7 @@ var CraftingService = class {
         collectionLabel,
         uuid: component.uuid,
         quantity: component.quantity,
+        ingredientGroup: component.ingredientGroup ?? 0,
         name: document2.name ?? component.uuid,
         found: true,
         isItem,
@@ -986,7 +1110,25 @@ var CraftingService = class {
     };
   }
   buildExecutionContext(actor, recipeItem, validation, lots, maxLots) {
-    const ingredients = validation.entries.filter((entry) => entry.collection === "ingredients").map((entry) => this.buildActorInventoryMatch(actor, entry, lots));
+    const ingredientEntries = validation.entries.filter((entry) => entry.collection === "ingredients");
+    const ingredientGroups = /* @__PURE__ */ new Map();
+    for (const entry of ingredientEntries) {
+      const group = Math.max(1, Math.floor(Number(entry.ingredientGroup ?? 1)));
+      if (!ingredientGroups.has(group)) {
+        ingredientGroups.set(group, []);
+      }
+      ingredientGroups.get(group).push(entry);
+    }
+    const ingredients = [];
+    for (const entries of ingredientGroups.values()) {
+      const matches = entries.map((entry) => this.buildActorInventoryMatch(actor, entry, lots));
+      const selected = matches.find((match) => match.sufficient) ?? matches[0];
+      if (selected) {
+        selected.alternativeMatches = matches;
+        selected.ingredientGroup = Math.max(1, Math.floor(Number(selected.recipeEntry?.ingredientGroup ?? 1)));
+        ingredients.push(selected);
+      }
+    }
     const tools = validation.entries.filter((entry) => entry.collection === "tools").map((entry) => this.buildActorInventoryMatch(actor, entry, 1));
     const outputs = validation.entries.filter((entry) => entry.collection === "outputs");
     const currency = this.buildCurrencyMatch(actor, validation.recipeData, lots);
@@ -2357,52 +2499,42 @@ var CraftingService = class {
     return roll.criticalSuccess ? baseXp * 2 : baseXp;
   }
   async sendCraftingResultToChat(context, roll, professionXp, outputQuality) {
-    const outputIcon = roll.success ? "\u2705" : "\u2796";
-    const outputStatus = roll.success ? roll.criticalSuccess ? "Creato, quantit\xE0 raddoppiata" : "Creato" : "Non creato";
+    const recipeName = this.escapeHtml(context.validation.recipeName);
+    const actorName = this.escapeHtml(context.actor.name ?? "Attore");
+    const professionLabel = this.escapeHtml(context.professionRequirement.professionLabel);
+    const levelUp = professionXp.afterLevel > professionXp.beforeLevel ? " ⭐" : "";
+    const nextLevel = professionXp.xpForNextLevel === null ? "livello massimo" : `${professionXp.xpToNextLevel} XP al prossimo livello`;
+    const xpLine = `${professionLabel} · Lv ${professionXp.beforeLevel} → ${professionXp.afterLevel}${levelUp} · XP ${professionXp.beforeXp} → ${professionXp.afterXp} (+${professionXp.gained}) · ${nextLevel}`;
+    const rollLine = `🎲 ${roll.total} vs CD ${roll.dc}`;
+    const ingredientLines = context.ingredients.map((match) => {
+      const consumed = Math.max(0, Number(match.beforeQuantity ?? 0) - Number(match.afterQuantity ?? match.beforeQuantity ?? 0));
+      return consumed > 0 ? `${this.escapeHtml(match.recipeEntry.name)} ×${consumed}` : null;
+    }).filter(Boolean);
+    const currencyLine = context.currency?.consumed && context.currency?.requiredCopper > 0 ? this.escapeHtml(this.formatCurrencyAmount(context.currency.requiredCopper / 100, "gp")) : "";
+    const toolLines = context.tools.map((match) => {
+      const consumed = Math.max(0, Number(match.beforeQuantity ?? 0) - Number(match.afterQuantity ?? match.beforeQuantity ?? 0));
+      return consumed > 0 ? `${this.escapeHtml(match.recipeEntry.name)} ×${consumed}` : null;
+    }).filter(Boolean);
+    const consumptionParts = [];
+    if (ingredientLines.length > 0) consumptionParts.push(ingredientLines.join(", "));
+    if (currencyLine) consumptionParts.push(currencyLine);
+    if (toolLines.length > 0) consumptionParts.push(toolLines.join(", "));
+    const consumptionLine = consumptionParts.length > 0 ? consumptionParts.join(" · ") : "Nessuno";
+    const outputMultiplier = roll.success ? (roll.criticalSuccess ? 2 : 1) : 0;
+    const outputLines = roll.success && context.outputs.length > 0 ? context.outputs.map((output) => {
+      const quantity = Math.max(1, Number(output.quantity || 1)) * context.lots * outputMultiplier;
+      return `${this.escapeHtml(output.name)} ×${quantity}${outputQuality?.label ? ` · ${this.escapeHtml(outputQuality.label)}` : ""}`;
+    }).join("<br>") : "Nessun oggetto creato";
     const content = `
-            <div class="artisan-chat-card">
-                <h2>${this.getOutcomeIcon(roll)} ${this.escapeHtml(roll.outcomeLabel)}</h2>
-                <p>
-                    <strong>${this.escapeHtml(context.validation.recipeName)}</strong><br>
-                    Attore: ${this.escapeHtml(context.actor.name ?? "Attore")}<br>
-                    Lotti: ${context.lots}<br>
-                    Professione richiesta: ${this.escapeHtml(context.professionRequirement.professionLabel)} livello ${context.professionRequirement.requiredLevel}<br>
-                    Professione PG: livello ${professionXp.beforeLevel} \u2192 ${professionXp.afterLevel}${professionXp.afterLevel > professionXp.beforeLevel ? " \u2B50 Avanzamento" : ""}<br>
-                    XP professione: ${professionXp.beforeXp} \u2192 ${professionXp.afterXp}<br>
-                    XP professione guadagnata: +${professionXp.gained}<br>
-                    XP ricetta per lotto: ${Math.max(0, Math.floor(Number(context.validation.recipeData.craftingXp ?? 0))) || "automatici"}<br>
-                    Prossimo livello: ${professionXp.xpForNextLevel === null ? "Livello massimo" : `${professionXp.xpToNextLevel} XP mancanti (${professionXp.progressPercent}%)`}
-                </p>
-                <table>
-                    <tbody>
-                        <tr><td><strong>Formula</strong></td><td>${this.escapeHtml(roll.formula)}</td></tr>
-                        <tr><td><strong>Tiro naturale</strong></td><td>${roll.natural}</td></tr>
-                        <tr><td><strong>Modificatore abilit\xE0</strong></td><td>${roll.skillModifier >= 0 ? "+" : ""}${roll.skillModifier}</td></tr>
-                        <tr><td><strong>Bonus strumenti competenti</strong></td><td>+${roll.toolProficiencyBonus}</td></tr>
-                        <tr><td><strong>Modificatore totale</strong></td><td>${roll.modifier >= 0 ? "+" : ""}${roll.modifier}</td></tr>
-                        <tr><td><strong>Totale</strong></td><td>${roll.total}</td></tr>
-                        <tr><td><strong>CD</strong></td><td>${roll.dc}</td></tr>
-                        <tr><td><strong>Margine</strong></td><td>${roll.success ? outputQuality.margin : "\u2014"}</td></tr>
-                        <tr><td><strong>Qualit\xE0 output</strong></td><td>${roll.success ? `${this.escapeHtml(outputQuality.label)} \u2014 ${this.escapeHtml(outputQuality.description)}` : "Nessuna"}</td></tr>
-                        <tr><td><strong>Bonus qualit\xE0 formula</strong></td><td>${roll.success ? this.getQualityModification(context.validation.recipeData, outputQuality).bonus > 0 ? `+${this.getQualityModification(context.validation.recipeData, outputQuality).bonus}${this.getQualityModification(context.validation.recipeData, outputQuality).preferredPath ? ` su ${this.escapeHtml(this.getQualityModification(context.validation.recipeData, outputQuality).preferredPath)}` : " automatico"}` : "Nessuno" : "Nessuno"}</td></tr>
-                    </tbody>
-                </table>
-                ${this.buildToolProficiencyResultSection(roll.toolProficiencyDetails)}
-                ${this.buildInventoryResultSection("Ingredienti", context.ingredients, "\u{1F525}", "Consumati")}
-                ${this.buildCurrencyResultSection(
-      context.currency,
-      "\u{1F4B0}",
-      context.currency.consumed ? "Consumate" : context.currency.cost.totalCopper > 0 ? "Non consumate" : "Nessun costo"
-    )}
-                ${this.buildInventoryResultSection(
-      "Strumenti",
-      context.tools,
-      roll.criticalFailure ? "\u{1F4A5}" : "\u{1F6E0}\uFE0F",
-      roll.criticalFailure ? this.isRecipeToolCriticalDamageEnabled(context.validation.recipeData) ? "Distrutti" : "Protetti: danno disattivato" : "Non consumati"
-    )}
-                ${this.buildOutputResultSection(context.outputs, context.lots, roll.success ? roll.criticalSuccess ? 2 : 1 : 0, outputIcon, outputStatus, outputQuality)}
-            </div>
-        `;
+      <div class="artisan-chat-card artisan-chat-card--compact">
+        <h2>${this.getOutcomeIcon(roll)} ${this.escapeHtml(roll.outcomeLabel)}</h2>
+        <p><strong>${recipeName}</strong> · ${actorName}${context.lots > 1 ? ` · ${context.lots} lotti` : ""}</p>
+        <p><strong>${rollLine}</strong></p>
+        <p class="artisan-chat-xp"><strong>⭐ Esperienza:</strong> ${xpLine}</p>
+        <h3>Risultato</h3>
+        <p>${outputLines}</p>
+        <p class="artisan-chat-consumi"><strong>🔥 Consumi:</strong> ${consumptionLine}</p>
+      </div>`;
     await ChatMessage.create({
       content,
       speaker: ChatMessage.getSpeaker({ actor: context.actor })
@@ -2764,7 +2896,8 @@ var DisassemblyService = class _DisassemblyService {
         weight: collection === "resources" ? this.resolveResourceWeight(options.weight, importedWeight, options.rarity) : options.weight,
         minQuantity: options.minQuantity,
         maxQuantity: options.maxQuantity,
-        rarity: this.normalizeResourceRarity(options.rarity)
+        rarity: this.normalizeResourceRarity(options.rarity),
+        xp: options.xp
       });
       const nextCollection = [...profile[collection]];
       const existingIndex = nextCollection.findIndex((entry) => entry.uuid === component.uuid);
@@ -2777,6 +2910,7 @@ var DisassemblyService = class _DisassemblyService {
             minQuantity: component.minQuantity,
             maxQuantity: component.maxQuantity,
             rarity: component.rarity,
+            xp: component.xp,
             quantity: component.maxQuantity
           });
         } else {
@@ -2958,9 +3092,9 @@ var DisassemblyService = class _DisassemblyService {
     });
     let sourceConsumed = false;
     let sourceAfterQuantity = sourceQuantityOwned;
+    sourceAfterQuantity = await this.consumeActorItem(sourceItem, sourceQuantityRequired);
+    sourceConsumed = true;
     if (success) {
-      sourceAfterQuantity = await this.consumeActorItem(sourceItem, sourceQuantityRequired);
-      sourceConsumed = true;
       for (const resource of collectedResources) {
         if (resource.finalQuantity <= 0) {
           continue;
@@ -3024,7 +3158,8 @@ var DisassemblyService = class _DisassemblyService {
             <form>
                 <p><strong>Attore:</strong> ${this.escapeHtml(actor.name ?? "Attore")}</p>
                 <p><strong>Lista:</strong> ${this.escapeHtml(profile.name)}</p>
-                <p><strong>Sorgente:</strong> ${this.escapeHtml(sourceName)} \u2014 richiesti ${sourceQuantityRequired}, posseduti ${sourceQuantityOwned}</p>
+                <p><strong>Sorgente:</strong> ${this.escapeHtml(sourceName)} — richiesti ${sourceQuantityRequired}, posseduti ${sourceQuantityOwned}</p>
+                <p><strong>Consumo sorgente:</strong> la quantità indicata viene sempre consumata quando viene effettuato il tentativo, anche in caso di fallimento.</p>
                 <p><strong>Professione:</strong> ${this.escapeHtml(this.getProfessionLabel(profile.profession))}</p>
                 <p><strong>Livello professione PG:</strong> ${actorProfession.level}</p>
                 <p><strong>Moltiplicatore PG:</strong> ${this.escapeHtml(actorProfession.gatheringMultiplierLabel)}</p>
@@ -3321,57 +3456,27 @@ var DisassemblyService = class _DisassemblyService {
     return criticalSuccess ? baseXp * 2 : baseXp;
   }
   async sendDisassemblyResultToChat(data) {
-    const title = data.criticalSuccess ? "\u{1F31F} Successo critico Dissassemblare" : data.criticalFailure ? "\u{1F4A5} Fallimento critico Dissassemblare" : data.success ? "\u2705 Dissassemblare riuscito" : "\u274C Dissassemblare fallito";
+    const title = data.criticalSuccess ? "🌟 Successo critico Disassemblaggio" : data.criticalFailure ? "💥 Fallimento critico Disassemblaggio" : data.success ? "✅ Disassemblaggio riuscito" : "❌ Disassemblaggio fallito";
+    const professionLabel = this.escapeHtml(this.getProfessionLabel(data.profile.profession));
+    const levelUp = data.actorProfessionLevelAfter > data.actorProfessionLevel ? " ⭐" : "";
+    const nextLevel = data.xpForNextLevel === null ? "livello massimo" : `${data.xpToNextLevel} XP al prossimo livello`;
+    const xpLine = `${professionLabel} · Lv ${data.actorProfessionLevel} → ${data.actorProfessionLevelAfter}${levelUp} · XP ${data.actorProfessionXp} → ${data.actorProfessionXpAfter} (+${data.xpGained}) · ${nextLevel}`;
+    const sourceText = `${this.escapeHtml(data.sourceName)} ×${data.sourceQuantityRequired} consumato`;
     const resourceRows = data.collectedResources.length > 0 ? data.collectedResources.map((resource) => `
-                <tr>
-                    <td>${this.formatRewardName(resource)}</td>
-                    <td>${resource.weight}</td>
-                    <td>${this.escapeHtml(resource.quantityLabel)}</td>
-                    <td>${resource.rolledQuantity}</td>
-                    <td>${resource.multipliedQuantity}</td>
-                    <td>${resource.finalQuantity}</td>
-                </tr>
-            `).join("") : `<tr><td colspan="6">Nessun materiale ottenuto.</td></tr>`;
-    const toolDetailsText = data.toolBonusDetails.length > 0 ? data.toolBonusDetails.map((tool) => {
-      const status = tool.applied ? "applicato" : tool.possessed ? "non competente" : "non posseduto";
-      return `${this.escapeHtml(tool.name)} +${tool.quantity} alla prova: ${this.escapeHtml(status)}`;
-    }).join("<br>") : "Nessuno";
-    const sourceText = data.sourceConsumed ? `${this.escapeHtml(data.sourceName)} consumato: ${data.sourceQuantityOwned} \u2192 ${data.sourceAfterQuantity}` : `${this.escapeHtml(data.sourceName)} non consumato.`;
+      <tr><td>${this.formatRewardName(resource)}</td><td>${resource.finalQuantity}</td></tr>
+    `).join("") : `<tr><td colspan="2">Nessun materiale ottenuto.</td></tr>`;
+    const toolDamage = data.criticalFailure && data.criticalFailureToolDamage ? `<p><strong>💥 Strumento:</strong> ${this.escapeHtml(data.criticalFailureToolDamage)}</p>` : "";
     const content = `
-            <div class="artisan-chat-card">
-                <h2>${title}</h2>
-                <p><strong>${this.escapeHtml(data.profile.name)}</strong><br>Attore: ${this.escapeHtml(data.actor.name ?? "Attore")}</p>
-                <table>
-                    <tbody>
-                        <tr><td><strong>Sorgente</strong></td><td>${sourceText}</td></tr>
-                        <tr><td><strong>Professione</strong></td><td>${this.escapeHtml(this.getProfessionLabel(data.profile.profession))}</td></tr>
-                        <tr><td><strong>Livello professione PG</strong></td><td>${data.actorProfessionLevel} \u2192 ${data.actorProfessionLevelAfter}${data.actorProfessionLevelAfter > data.actorProfessionLevel ? " \u2B50 Avanzamento" : ""}</td></tr>
-                        <tr><td><strong>XP professione PG</strong></td><td>${data.actorProfessionXp} \u2192 ${data.actorProfessionXpAfter}</td></tr>
-                        <tr><td><strong>XP guadagnata</strong></td><td>+${data.xpGained}</td></tr>
-                        <tr><td><strong>Prossimo livello</strong></td><td>${data.xpForNextLevel === null ? "Livello massimo" : `${data.xpToNextLevel} XP mancanti (${data.progressPercent}%)`}</td></tr>
-                        <tr><td><strong>Moltiplicatore PG</strong></td><td>${this.escapeHtml(data.gatheringMultiplierLabel)}</td></tr>
-                        <tr><td><strong>Abilit\xE0</strong></td><td>${this.escapeHtml(data.profile.skill || "Non impostata")}</td></tr>
-                        <tr><td><strong>Formula</strong></td><td>${this.escapeHtml(data.rollFormula)}</td></tr>
-                        <tr><td><strong>Naturale</strong></td><td>${data.natural ?? "-"}</td></tr>
-                        <tr><td><strong>Modificatore abilit\xE0</strong></td><td>${data.skillModifier}</td></tr>
-                        <tr><td><strong>Bonus strumenti competenti</strong></td><td>+${data.toolBonus}</td></tr>
-                        <tr><td><strong>Dettaglio strumenti</strong></td><td>${toolDetailsText}</td></tr>
-                        <tr><td><strong>Totale</strong></td><td>${data.total}</td></tr>
-                        <tr><td><strong>CD</strong></td><td>${data.profile.dc}</td></tr>
-                        <tr><td><strong>Tempo</strong></td><td>${this.formatHours(data.profile.time)}</td></tr>
-                        <tr><td><strong>Danno strumenti</strong></td><td>${data.criticalFailure ? this.escapeHtml(data.criticalFailureToolDamage ?? "Nessuno") : "-"}</td></tr>
-                    </tbody>
-                </table>
-
-                <h3>Materiali ottenuti</h3>
-                <table>
-                    <thead>
-                        <tr><th>Materiale</th><th>Peso</th><th>Range</th><th>Base</th><th>Dopo mult.</th><th>Finale</th></tr>
-                    </thead>
-                    <tbody>${resourceRows}</tbody>
-                </table>
-            </div>
-        `;
+      <div class="artisan-chat-card artisan-chat-card--compact">
+        <h2>${title}</h2>
+        <p><strong>${this.escapeHtml(data.profile.name)}</strong> · ${this.escapeHtml(data.actor.name ?? "Attore")}</p>
+        <p><strong>🎲 ${this.escapeHtml(data.profile.skill || "Prova")}: ${data.total} vs CD ${data.profile.dc}</strong> · ${this.formatHours(data.profile.time)}</p>
+        <p><strong>🔥 Sorgente:</strong> ${sourceText}</p>
+        <p class="artisan-chat-xp"><strong>⭐ Esperienza:</strong> ${xpLine}</p>
+        <h3>Materiali ottenuti</h3>
+        <table><thead><tr><th>Materiale</th><th>Quantità</th></tr></thead><tbody>${resourceRows}</tbody></table>
+        ${toolDamage}
+      </div>`;
     await ChatMessage.create({
       content,
       speaker: ChatMessage.getSpeaker({ actor: data.actor })
@@ -4000,7 +4105,7 @@ var ForagingService = class _ForagingService {
       name
     });
   }
-  async startForaging(profileId) {
+  async startForaging(profileId, requestedHours = null) {
     const profile = this.getProfile(profileId);
     if (!profile) {
       ui.notifications.warn("Lista di raccolta non trovata.");
@@ -4015,13 +4120,17 @@ var ForagingService = class _ForagingService {
       ui.notifications.warn("La lista di raccolta non contiene risorse.");
       return;
     }
+    const baseHours = Math.max(0.25, Number(profile.time ?? 1));
+    const parsedRequestedHours = Number(requestedHours);
+    const totalHours = Number.isFinite(parsedRequestedHours) ? Math.max(baseHours, parsedRequestedHours) : baseHours;
+    const durationMultiplier = totalHours / baseHours;
     const toolRequirementResult = await this.checkToolRequirement(actor, profile);
     if (!toolRequirementResult.allowed) {
       await this.sendBlockedByToolRequirementToChat(actor, profile, toolRequirementResult.details);
       ui.notifications.warn("Raccolta bloccata: manca uno strumento obbligatorio.");
       return;
     }
-    const confirmation = await this.confirmForaging(profile, actor);
+    const confirmation = await this.confirmForaging(profile, actor, totalHours, durationMultiplier);
     if (!confirmation) {
       return;
     }
@@ -4048,11 +4157,13 @@ var ForagingService = class _ForagingService {
         rolledQuantity
       );
       const multipliedQuantity = this.applyProfessionMultiplier(normalQuantity, gatheringMultiplier);
-      const finalQuantity = criticalSuccess ? multipliedQuantity * 2 : multipliedQuantity;
+      const durationQuantity = Math.max(1, Math.floor(multipliedQuantity * durationMultiplier));
+      const finalQuantity = criticalSuccess ? durationQuantity * 2 : durationQuantity;
       return {
         ...resource,
         normalQuantity,
         multipliedQuantity,
+        durationQuantity,
         finalQuantity
       };
     });
@@ -4067,7 +4178,7 @@ var ForagingService = class _ForagingService {
       );
     }
     const criticalFailureToolDamage = criticalFailure ? this.isProfileToolCriticalDamageEnabled(profile) ? await this.damageForagingTool(actor, profile) : game.i18n.localize("ARTISAN.ToolDamageDisabled") : null;
-    const professionXpGained = success ? this.calculateForagingXp(profile, collectedResources.length, criticalSuccess) : 0;
+    const professionXpGained = success ? this.calculateForagingXp(profile, collectedResources.length, criticalSuccess, durationMultiplier) : 0;
     const actorProfessionAfterXp = professionXpGained > 0 ? await professionService.addActorProfessionXp(actor, profile.profession, professionXpGained) : actorProfession;
     await this.sendForagingResultToChat({
       actor,
@@ -4079,6 +4190,9 @@ var ForagingService = class _ForagingService {
       success,
       criticalSuccess,
       criticalFailure,
+      baseHours,
+      totalHours,
+      durationMultiplier,
       collectedResources,
       toolBonus,
       toolBonusDetails: toolBonusResult.details,
@@ -4105,7 +4219,7 @@ var ForagingService = class _ForagingService {
       ui.notifications.warn("Raccolta fallita.");
     }
   }
-  async confirmForaging(profile, actor) {
+  async confirmForaging(profile, actor, totalHours, durationMultiplier) {
     const resources = await this.toComponentViews(
       profile,
       "resources",
@@ -4136,7 +4250,8 @@ var ForagingService = class _ForagingService {
                 <p><strong>Moltiplicatore raccolta PG:</strong> ${this.escapeHtml(actorProfession.gatheringMultiplierLabel)}</p>
                 <p><strong>Abilit\xE0:</strong> ${this.escapeHtml(profile.skill || "Non impostata")}</p>
                 <p><strong>CD:</strong> ${profile.dc}</p>
-                <p><strong>Tempo:</strong> ${this.formatHours(profile.time)}</p>
+                <p><strong>Durata base:</strong> ${this.formatHours(profile.time)}</p>
+                <p><strong>Ore di questo tiro:</strong> ${this.formatHours(totalHours)} · quantità e XP ×${this.formatMultiplier(durationMultiplier)}</p>
                 <p><strong>Massimo risorse diverse:</strong> ${profile.maxResources}</p>
 
                 <h4>Risorse possibili</h4>
@@ -4574,153 +4689,32 @@ var ForagingService = class _ForagingService {
     const result = firstTerm?.results?.[0]?.result;
     return typeof result === "number" ? result : null;
   }
-  calculateForagingXp(profile, collectedResourceCount, criticalSuccess) {
+  calculateForagingXp(profile, collectedResourceCount, criticalSuccess, durationMultiplier = 1) {
     const resourceBonus = Math.max(1, Math.floor(Number(collectedResourceCount ?? 0)));
-    const baseXp = resourceBonus;
+    const baseXp = Math.max(1, Math.floor(resourceBonus * Math.max(1, Number(durationMultiplier ?? 1))));
     return criticalSuccess ? baseXp * 2 : baseXp;
   }
   async sendForagingResultToChat(data) {
-    const title = data.criticalSuccess ? "\u{1F31F} Successo critico Raccolta" : data.criticalFailure ? "\u{1F4A5} Fallimento critico Raccolta" : data.success ? "\u2705 Raccolta riuscita" : "\u274C Raccolta fallita";
-    const specialResultText = data.criticalSuccess ? "Successo critico: quantit\xE0 dopo moltiplicatore raddoppiata." : data.criticalFailure ? `Fallimento critico: prova fallita automaticamente, nessuna risorsa raccolta. ${data.criticalFailureToolDamage ?? ""}`.trim() : "-";
+    const title = data.criticalSuccess ? "🌟 Successo critico Raccolta" : data.criticalFailure ? "💥 Fallimento critico Raccolta" : data.success ? "✅ Raccolta riuscita" : "❌ Raccolta fallita";
+    const professionLabel = this.escapeHtml(this.getProfessionLabel(data.profile.profession));
+    const levelUp = data.actorProfessionLevelAfter > data.actorProfessionLevel ? " ⭐" : "";
+    const nextLevel = data.xpForNextLevel === null ? "livello massimo" : `${data.xpToNextLevel} XP al prossimo livello`;
+    const xpLine = `${professionLabel} · Lv ${data.actorProfessionLevel} → ${data.actorProfessionLevelAfter}${levelUp} · XP ${data.actorProfessionXp} → ${data.actorProfessionXpAfter} (+${data.xpGained}) · ${nextLevel}`;
     const resourceRows = data.collectedResources.length > 0 ? data.collectedResources.map((resource) => `
-                <tr>
-                    <td>${this.formatRewardName(resource)}</td>
-                    <td>${resource.weight}</td>
-                    <td>${this.escapeHtml(resource.quantityLabel)}</td>
-                    <td>${resource.rolledQuantity}</td>
-                    <td>${resource.normalQuantity}</td>
-                    <td>${resource.multipliedQuantity}</td>
-                    <td>${resource.finalQuantity}</td>
-                </tr>
-            `).join("") : `
-                <tr>
-                    <td colspan="7">Nessuna risorsa raccolta.</td>
-                </tr>
-            `;
-    const resultText = data.success && data.collectedResources.length > 0 ? `${data.collectedResources.length} risorse diverse aggiunte all'attore.` : "Nessuna risorsa raccolta.";
-    const toolDetailsText = data.toolBonusDetails.length > 0 ? data.toolBonusDetails.map((tool) => {
-      const status = tool.applied ? "applicato" : tool.possessed ? "non competente" : "non posseduto";
-      return `${this.escapeHtml(tool.name)} +${tool.quantity} alla prova: ${this.escapeHtml(status)}`;
-    }).join("<br>") : "Nessuno";
+      <tr><td>${this.formatRewardName(resource)}</td><td>${resource.finalQuantity}</td></tr>
+    `).join("") : `<tr><td colspan="2">Nessuna risorsa raccolta.</td></tr>`;
+    const toolDamage = data.criticalFailure && data.criticalFailureToolDamage ? `<p><strong>💥 Strumento:</strong> ${this.escapeHtml(data.criticalFailureToolDamage)}</p>` : "";
     const content = `
-            <div class="artisan-chat-card">
-                <h2>${title}</h2>
-
-                <p>
-                    <strong>${this.escapeHtml(data.profile.name)}</strong><br>
-                    Attore: ${this.escapeHtml(data.actor.name ?? "Attore")}
-                </p>
-
-                <table>
-                    <tbody>
-                        <tr>
-                            <td><strong>Bioma</strong></td>
-                            <td>${this.escapeHtml(this.getBiomeLabel(data.profile.biome))}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Professione</strong></td>
-                            <td>${this.escapeHtml(this.getProfessionLabel(data.profile.profession))}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Livello professione PG</strong></td>
-                            <td>${data.actorProfessionLevel} \u2192 ${data.actorProfessionLevelAfter}${data.actorProfessionLevelAfter > data.actorProfessionLevel ? " \u2B50 Avanzamento" : ""}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>XP professione PG</strong></td>
-                            <td>${data.actorProfessionXp} \u2192 ${data.actorProfessionXpAfter}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>XP guadagnata</strong></td>
-                            <td>+${data.xpGained}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Prossimo livello</strong></td>
-                            <td>${data.xpForNextLevel === null ? "Livello massimo" : `${data.xpToNextLevel} XP mancanti (${data.progressPercent}%)`}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Sorgente professione</strong></td>
-                            <td>${this.escapeHtml(data.actorProfessionSource)}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Moltiplicatore raccolta PG</strong></td>
-                            <td>${this.escapeHtml(data.gatheringMultiplierLabel)}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Abilit\xE0</strong></td>
-                            <td>${this.escapeHtml(data.profile.skill || "Non impostata")}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Formula</strong></td>
-                            <td>${this.escapeHtml(data.rollFormula)}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Naturale</strong></td>
-                            <td>${data.natural ?? "-"}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Modificatore</strong></td>
-                            <td>${data.skillModifier}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Totale</strong></td>
-                            <td>${data.total}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>CD</strong></td>
-                            <td>${data.profile.dc}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Esito speciale</strong></td>
-                            <td>${this.escapeHtml(specialResultText)}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Danno strumento</strong></td>
-                            <td>${data.criticalFailure ? this.escapeHtml(data.criticalFailureToolDamage ?? "Nessuno") : "-"}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Tempo</strong></td>
-                            <td>${this.formatHours(data.profile.time)}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Massimo risorse diverse</strong></td>
-                            <td>${data.profile.maxResources}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Risorse diverse raccolte</strong></td>
-                            <td>${data.collectedResources.length}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Bonus strumenti competenti alla prova</strong></td>
-                            <td>+${data.toolBonus}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Dettaglio strumenti</strong></td>
-                            <td>${toolDetailsText}</td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <h3>Risorse raccolte</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Risorsa</th>
-                            <th>Peso</th>
-                            <th>Range</th>
-                            <th>Base</th>
-                            <th>Prima mult.</th>
-                            <th>Dopo mult.</th>
-                            <th>Finale</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${resourceRows}
-                    </tbody>
-                </table>
-
-                <p><strong>${resultText}</strong></p>
-            </div>
-        `;
+      <div class="artisan-chat-card artisan-chat-card--compact">
+        <h2>${title}</h2>
+        <p><strong>${this.escapeHtml(data.profile.name)}</strong> · ${this.escapeHtml(data.actor.name ?? "Attore")}</p>
+        <p><strong>🎲 ${this.escapeHtml(data.profile.skill || "Prova")}: ${data.total} vs CD ${data.profile.dc}</strong> · ${this.escapeHtml(this.getBiomeLabel(data.profile.biome))}</p>
+        <p><strong>⏱ Durata:</strong> ${this.formatHours(data.totalHours)} · quantità e XP ×${this.formatMultiplier(data.durationMultiplier)}</p>
+        <p class="artisan-chat-xp"><strong>⭐ Esperienza:</strong> ${xpLine}</p>
+        <h3>Risorse raccolte</h3>
+        <table><thead><tr><th>Risorsa</th><th>Quantità</th></tr></thead><tbody>${resourceRows}</tbody></table>
+        ${toolDamage}
+      </div>`;
     await ChatMessage.create({
       content,
       speaker: ChatMessage.getSpeaker({ actor: data.actor })
@@ -4767,6 +4761,10 @@ var ForagingService = class _ForagingService {
       return "1 ora";
     }
     return `${hours} ore`;
+  }
+  formatMultiplier(value) {
+    const multiplier = Math.max(1, Number(value ?? 1));
+    return Number.isInteger(multiplier) ? String(multiplier) : multiplier.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
   }
   normalizeProfile(profile) {
     const professionService = new ProfessionService();
@@ -5313,7 +5311,7 @@ var HarvestService = class _HarvestService {
     }
     const consumedRequiredTools = success ? await this.consumeRequiredHarvestTools(actor, profile, collectedResources) : [];
     const criticalFailureToolDamage = criticalFailure ? this.isProfileToolCriticalDamageEnabled(profile) ? await this.damageHarvestTool(actor, profile) : game.i18n.localize("ARTISAN.ToolDamageDisabled") : null;
-    const professionXpGained = success ? this.calculateHarvestXp(profile, collectedResources.length, criticalSuccess) : 0;
+    const professionXpGained = success ? this.calculateHarvestXp(profile, collectedResources, criticalSuccess) : 0;
     const actorProfessionAfterXp = professionXpGained > 0 ? await professionService.addActorProfessionXp(actor, profile.profession, professionXpGained) : actorProfession;
     await this.sendHarvestResultToChat({
       actor,
@@ -5948,167 +5946,40 @@ var HarvestService = class _HarvestService {
     const result = firstTerm?.results?.[0]?.result;
     return typeof result === "number" ? result : null;
   }
-  calculateHarvestXp(profile, collectedResourceCount, criticalSuccess) {
-    const resourceBonus = Math.max(1, Math.floor(Number(collectedResourceCount ?? 0)));
-    const baseXp = resourceBonus;
-    return criticalSuccess ? baseXp * 2 : baseXp;
+  calculateHarvestXp(profile, collectedResources, criticalSuccess) {
+    if (!Array.isArray(collectedResources) || collectedResources.length === 0) {
+      return 0;
+    }
+    const baseXp = collectedResources.reduce((total, resource) => {
+      const xpPerUnit = Math.max(0, Math.floor(Number(resource.xp ?? 0)));
+      const quantity = Math.max(0, Math.floor(Number(resource.finalQuantity ?? resource.normalQuantity ?? 0)));
+      return total + xpPerUnit * quantity;
+    }, 0);
+    return Math.max(0, baseXp);
   }
   async sendHarvestResultToChat(data) {
-    const title = data.criticalSuccess ? "\u{1F31F} Successo critico Caccia" : data.criticalFailure ? "\u{1F4A5} Fallimento critico Caccia" : data.success ? "\u2705 Caccia riuscita" : "\u274C Caccia fallita";
-    const specialResultText = data.criticalSuccess ? "Successo critico: quantit\xE0 dopo moltiplicatore raddoppiata." : data.criticalFailure ? `Fallimento critico: prova fallita automaticamente, nessuna parte da caccia. ${data.criticalFailureToolDamage ?? ""}`.trim() : "-";
+    const title = data.criticalSuccess ? "🌟 Successo critico Caccia" : data.criticalFailure ? "💥 Fallimento critico Caccia" : data.success ? "✅ Caccia riuscita" : "❌ Caccia fallita";
+    const professionLabel = this.escapeHtml(this.getProfessionLabel(data.profile.profession));
+    const levelUp = data.actorProfessionLevelAfter > data.actorProfessionLevel ? " ⭐" : "";
+    const nextLevel = data.xpForNextLevel === null ? "livello massimo" : `${data.xpToNextLevel} XP al prossimo livello`;
+    const xpLine = `${professionLabel} · Lv ${data.actorProfessionLevel} → ${data.actorProfessionLevelAfter}${levelUp} · XP ${data.actorProfessionXp} → ${data.actorProfessionXpAfter} (+${data.xpGained}) · ${nextLevel}`;
     const resourceRows = data.collectedResources.length > 0 ? data.collectedResources.map((resource) => `
-                <tr>
-                    <td>${this.formatRewardName(resource)}</td>
-                    <td>${this.escapeHtml(resource.rarityLabel)}</td>
-                    <td>${resource.weight}</td>
-                    <td>${this.escapeHtml(resource.quantityLabel)}</td>
-                    <td>${resource.rolledQuantity}</td>
-                    <td>${resource.normalQuantity}</td>
-                    <td>${resource.multipliedQuantity}</td>
-                    <td>${resource.finalQuantity}</td>
-                </tr>
-            `).join("") : `
-                <tr>
-                    <td colspan="8">Nessuna parte da caccia.</td>
-                </tr>
-            `;
-    const resultText = data.success && data.collectedResources.length > 0 ? `${data.collectedResources.length} parti diverse aggiunte all'attore.` : "Nessuna parte da caccia.";
-    const consumedRequiredToolsText = data.consumedRequiredTools.length > 0 ? data.consumedRequiredTools.map((tool) => {
-      const quantityText = tool.consumed ? `${tool.beforeQuantity} \u2192 ${tool.afterQuantity}` : "non consumato";
-      return `${this.escapeHtml(tool.name)}: ${quantityText} \u2014 ${this.escapeHtml(tool.reason)}`;
-    }).join("<br>") : data.profile.consumeRequiredTools ? "Nessuno strumento richiesto consumato." : "Opzione non attiva.";
-    const toolDetailsText = data.toolBonusDetails.length > 0 ? data.toolBonusDetails.map((tool) => {
-      const status = tool.applied ? "applicato" : tool.possessed ? "non competente" : "non posseduto";
-      return `${this.escapeHtml(tool.name)} +${tool.quantity} alla prova: ${this.escapeHtml(status)}`;
-    }).join("<br>") : "Nessuno";
+      <tr><td>${this.formatRewardName(resource)}</td><td>${this.escapeHtml(resource.rarityLabel)}</td><td>${resource.finalQuantity}</td></tr>
+    `).join("") : `<tr><td colspan="3">Nessuna parte raccolta.</td></tr>`;
+    const consumedTools = data.consumedRequiredTools?.filter((tool) => tool.consumed) ?? [];
+    const consumedToolsText = consumedTools.length > 0 ? `<p><strong>🛠️ Strumenti consumati:</strong> ${consumedTools.map((tool) => `${this.escapeHtml(tool.name)} ×${Math.max(0, Number(tool.beforeQuantity ?? 0) - Number(tool.afterQuantity ?? 0))}`).join(", ")}</p>` : "";
+    const toolDamage = data.criticalFailure && data.criticalFailureToolDamage ? `<p><strong>💥 Strumento:</strong> ${this.escapeHtml(data.criticalFailureToolDamage)}</p>` : "";
     const content = `
-            <div class="artisan-chat-card">
-                <h2>${title}</h2>
-
-                <p>
-                    <strong>${this.escapeHtml(data.profile.name)}</strong><br>
-                    Attore: ${this.escapeHtml(data.actor.name ?? "Attore")}
-                </p>
-
-                <table>
-                    <tbody>
-                        <tr>
-                            <td><strong>Tipo creatura</strong></td>
-                            <td>${this.escapeHtml(this.getCreatureTypeLabel(data.profile.creatureType))}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Professione</strong></td>
-                            <td>${this.escapeHtml(this.getProfessionLabel(data.profile.profession))}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Livello professione PG</strong></td>
-                            <td>${data.actorProfessionLevel} \u2192 ${data.actorProfessionLevelAfter}${data.actorProfessionLevelAfter > data.actorProfessionLevel ? " \u2B50 Avanzamento" : ""}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>XP professione PG</strong></td>
-                            <td>${data.actorProfessionXp} \u2192 ${data.actorProfessionXpAfter}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>XP guadagnata</strong></td>
-                            <td>+${data.xpGained}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Prossimo livello</strong></td>
-                            <td>${data.xpForNextLevel === null ? "Livello massimo" : `${data.xpToNextLevel} XP mancanti (${data.progressPercent}%)`}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Sorgente professione</strong></td>
-                            <td>${this.escapeHtml(data.actorProfessionSource)}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Moltiplicatore caccia PG</strong></td>
-                            <td>${this.escapeHtml(data.gatheringMultiplierLabel)}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Abilit\xE0</strong></td>
-                            <td>${this.escapeHtml(data.profile.skill || "Non impostata")}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Formula</strong></td>
-                            <td>${this.escapeHtml(data.rollFormula)}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Naturale</strong></td>
-                            <td>${data.natural ?? "-"}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Modificatore</strong></td>
-                            <td>${data.skillModifier}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Totale</strong></td>
-                            <td>${data.total}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>CD</strong></td>
-                            <td>${data.profile.dc}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Esito speciale</strong></td>
-                            <td>${this.escapeHtml(specialResultText)}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Danno strumento</strong></td>
-                            <td>${data.criticalFailure ? this.escapeHtml(data.criticalFailureToolDamage ?? "Nessuno") : "-"}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Tempo</strong></td>
-                            <td>${this.formatHours(data.profile.time)}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Massimo parti diverse</strong></td>
-                            <td>${data.profile.maxResources}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Modalit\xE0 risultati</strong></td>
-                            <td>${this.escapeHtml(this.getHarvestOutputModeLabel(data.profile.harvestOutputMode))}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Parti diverse raccolte</strong></td>
-                            <td>${data.collectedResources.length}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Bonus strumenti competenti alla prova</strong></td>
-                            <td>+${data.toolBonus}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Dettaglio strumenti</strong></td>
-                            <td>${toolDetailsText}</td>
-                        </tr>
-                        <tr>
-                            <td><strong>Strumenti richiesti consumati</strong></td>
-                            <td>${consumedRequiredToolsText}</td>
-                        </tr>
-                    </tbody>
-                </table>
-
-                <h3>Parti raccolte</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Parte</th>
-                            <th>Rarit\xE0</th>
-                            <th>Peso</th>
-                            <th>Range</th>
-                            <th>Base</th>
-                            <th>Prima mult.</th>
-                            <th>Dopo mult.</th>
-                            <th>Finale</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${resourceRows}
-                    </tbody>
-                </table>
-
-                <p><strong>${resultText}</strong></p>
-            </div>
-        `;
+      <div class="artisan-chat-card artisan-chat-card--compact">
+        <h2>${title}</h2>
+        <p><strong>${this.escapeHtml(data.profile.name)}</strong> · ${this.escapeHtml(data.actor.name ?? "Attore")}</p>
+        <p><strong>🎲 ${this.escapeHtml(data.profile.skill || "Prova")}: ${data.total} vs CD ${data.profile.dc}</strong> · ${this.escapeHtml(this.getCreatureTypeLabel(data.profile.creatureType))} · ${this.formatHours(data.profile.time)}</p>
+        <p class="artisan-chat-xp"><strong>⭐ Esperienza:</strong> ${xpLine}</p>
+        <h3>Parti raccolte</h3>
+        <table><thead><tr><th>Parte</th><th>Rarità</th><th>Quantità</th></tr></thead><tbody>${resourceRows}</tbody></table>
+        ${consumedToolsText}
+        ${toolDamage}
+      </div>`;
     await ChatMessage.create({
       content,
       speaker: ChatMessage.getSpeaker({ actor: data.actor })
@@ -6196,6 +6067,7 @@ var HarvestService = class _HarvestService {
       minQuantity,
       maxQuantity,
       rarity: this.normalizeRarity(component.rarity),
+      xp: Math.max(0, Math.floor(Number(component.xp ?? 1))),
       requiredToolUuid: String(component.requiredToolUuid ?? "").trim()
     };
   }
@@ -6246,6 +6118,7 @@ var HarvestService = class _HarvestService {
       minQuantity: normalized.minQuantity,
       maxQuantity: normalized.maxQuantity,
       rarity: normalized.rarity,
+      xp: normalized.xp,
       requiredToolUuid: normalized.requiredToolUuid,
       requiredToolName: normalized.requiredToolUuid || "Nessuno",
       requiredToolFound: !normalized.requiredToolUuid,
@@ -6496,7 +6369,7 @@ var RecipeService = class {
     }
     await RecipeDocument.setRecipeData(item, data);
   }
-  async addRecipeComponent(id, collection, uuid, quantity) {
+  async addRecipeComponent(id, collection, uuid, quantity, ingredientGroup = null) {
     const item = this.getRecipe(id);
     if (!item) {
       ui.notifications.warn("Ricetta non trovata.");
@@ -6527,7 +6400,8 @@ var RecipeService = class {
       collection,
       {
         uuid: cleanUuid,
-        quantity: Math.max(1, Number(quantity || 1))
+        quantity: Math.max(1, Number(quantity || 1)),
+        ...(collection === "ingredients" && ingredientGroup ? { ingredientGroup: Math.max(1, Math.floor(Number(ingredientGroup))) } : {})
       }
     );
     ui.notifications.info(`${document2.name} aggiunto alla ricetta.`);
@@ -6543,6 +6417,19 @@ var RecipeService = class {
       collection,
       index,
       Math.max(1, Number(quantity || 1))
+    );
+  }
+  async updateRecipeComponentGroup(id, collection, index, group) {
+    const item = this.getRecipe(id);
+    if (!item) {
+      ui.notifications.warn("Ricetta non trovata.");
+      return;
+    }
+    await RecipeDocument.updateComponentGroup(
+      item,
+      collection,
+      index,
+      Math.max(1, Math.floor(Number(group || 1)))
     );
   }
   async removeRecipeComponent(id, collection, index) {
@@ -6610,6 +6497,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
   recipeFilterCategory = "all";
   recipeFilterLevel = "all";
   pendingScrollState = null;
+  itemPickerChoicesCache = /* @__PURE__ */ new Map();
   static DEFAULT_OPTIONS = {
     id: "artisan-manager",
     tag: "section",
@@ -6621,6 +6509,22 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       width: 1120,
       height: 820
     },
+    actions: {
+      "artisan-toggle-minimize": async function(event, target) {
+        event.preventDefault();
+        event.stopPropagation();
+        try {
+          if (this.minimized) {
+            await this.maximize();
+          } else {
+            await this.minimize();
+          }
+        } catch (error) {
+          console.error("Artisan | Impossibile modificare lo stato della finestra.", error);
+          ui.notifications.error(game.i18n.localize("ARTISAN.MinimizeWindowError"));
+        }
+      }
+    },
     classes: ["artisan", "artisan-manager"]
   };
   static PARTS = {
@@ -6628,6 +6532,16 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       template: "modules/artisan/templates/artisan-manager.hbs"
     }
   };
+  _getFrameButtons(options) {
+    const buttons = super._getFrameButtons(options);
+    buttons.unshift({
+      action: "artisan-toggle-minimize",
+      label: "ARTISAN.MinimizeWindow",
+      icon: "fa-solid fa-window-minimize",
+      visible: true
+    });
+    return buttons;
+  }
   openSection(sectionId) {
     this.selectedSectionId = sectionId;
     this.renderPreservingUiState();
@@ -6679,12 +6593,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         label: game.i18n.localize("ARTISAN.Recipes"),
         icon: "fa-solid fa-book",
         count: recipes.length,
-        items: recipes.map((recipe) => ({
-          ...recipe,
-          kind: "recipe",
-          ...this.getRecipeCraftingRequirementView(recipe, professionService, selectedActor),
-          selected: this.selectedSectionId === "recipes" && recipe.id === this.selectedRecipeId
-        }))
+        items: this.buildRecipeExplorerTree(recipes, professionService, selectedActor)
       }),
       this.getExplorerSectionView({
         id: "foraging",
@@ -6761,6 +6670,16 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const selectedRecipeRequirement = selectedRecipe ? this.getRecipeCraftingRequirementView(selectedRecipe, professionService, selectedActor) : null;
     const selectedRecipeView = selectedRecipe ? {
       ...selectedRecipe,
+      ingredientGroups: Array.from(selectedRecipe.ingredients.reduce((groups, ingredient) => {
+        const groupId = Math.max(1, Math.floor(Number(ingredient.ingredientGroup ?? 1)));
+        if (!groups.has(groupId)) groups.set(groupId, { id: groupId, ingredients: [] });
+        groups.get(groupId).ingredients.push(ingredient);
+        return groups;
+      }, /* @__PURE__ */ new Map()).values()).sort((a, b) => a.id - b.id).map((group) => ({
+        ...group,
+        count: group.ingredients.length,
+        hasAlternatives: group.ingredients.length > 1
+      })),
       ...selectedRecipeRequirement,
       professionLevel: selectedRecipeProfessionLevel,
       craftingMultiplier: professionService.getCraftingMultiplier(
@@ -7047,6 +6966,10 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         void this.onComponentQuantityChanged(target);
         return;
       }
+      if (target instanceof HTMLInputElement && target.matches("[data-artisan-component-row-group]")) {
+        void this.onComponentGroupChanged(target);
+        return;
+      }
       if (target.matches("[data-artisan-foraging-field]")) {
         void this.onForagingFieldChanged(target);
         return;
@@ -7112,6 +7035,14 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     element.addEventListener("click", (event) => {
       const target = event.target;
       if (!(target instanceof HTMLElement)) {
+        return;
+      }
+      const itemPickerButton = target.closest(
+        "[data-artisan-pick-item], [data-artisan-pick-disassembly-source]"
+      );
+      if (itemPickerButton) {
+        event.preventDefault();
+        void this.openItemPicker(itemPickerButton);
         return;
       }
       const sectionToggleButton = target.closest(
@@ -7608,6 +7539,177 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       }
     });
   }
+  async getItemPickerChoices(kindsValue, forceRefresh = false) {
+    const kinds = ArtisanItemReference.normalizeKinds(kindsValue);
+    const cacheKey = kinds.slice().sort().join(",");
+    if (forceRefresh) this.itemPickerChoicesCache.delete(cacheKey);
+    if (!this.itemPickerChoicesCache.has(cacheKey)) {
+      this.itemPickerChoicesCache.set(cacheKey, ArtisanItemReference.buildPickerChoices(kinds));
+    }
+    return this.itemPickerChoicesCache.get(cacheKey);
+  }
+  async openItemPicker(trigger) {
+    const root = this.getRootElement();
+    if (!root) return;
+    root.querySelector("[data-artisan-item-picker-overlay]")?.remove();
+    const kindsValue = trigger.dataset.artisanPickerKinds ?? "Item";
+    const isSourcePicker = trigger.matches("[data-artisan-pick-disassembly-source]");
+    const triggerText = trigger.querySelector("span");
+    if (triggerText && !trigger.dataset.artisanPickerDefaultLabel) {
+      trigger.dataset.artisanPickerDefaultLabel = triggerText.textContent?.trim() || game.i18n.localize("ARTISAN.SelectItem");
+    }
+    const pickerField = trigger.closest(".artisan-item-picker-field");
+    const targetInput = pickerField?.querySelector("[data-artisan-picker-target]") ?? null;
+    const overlay = document.createElement("div");
+    overlay.className = "artisan-item-picker-overlay";
+    overlay.setAttribute("data-artisan-item-picker-overlay", "true");
+    const dialog = document.createElement("section");
+    dialog.className = "artisan-item-picker";
+    overlay.append(dialog);
+
+    const header = document.createElement("header");
+    header.className = "artisan-item-picker__header";
+    const title = document.createElement("h3");
+    title.textContent = game.i18n.localize("ARTISAN.ItemPickerTitle");
+    const closeButton = document.createElement("button");
+    closeButton.type = "button";
+    closeButton.className = "artisan-icon-button";
+    closeButton.title = game.i18n.localize("ARTISAN.ItemPickerClose");
+    closeButton.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+    header.append(title, closeButton);
+
+    const toolbar = document.createElement("div");
+    toolbar.className = "artisan-item-picker__toolbar";
+    const search = document.createElement("input");
+    search.type = "search";
+    search.placeholder = game.i18n.localize("ARTISAN.ItemPickerSearch");
+    search.autocomplete = "off";
+    const refreshButton = document.createElement("button");
+    refreshButton.type = "button";
+    refreshButton.className = "artisan-small-button";
+    refreshButton.title = game.i18n.localize("ARTISAN.ItemPickerRefresh");
+    refreshButton.innerHTML = '<i class="fa-solid fa-rotate"></i>';
+    toolbar.append(search, refreshButton);
+
+    const resultInfo = document.createElement("div");
+    resultInfo.className = "artisan-item-picker__result-info";
+    const list = document.createElement("div");
+    list.className = "artisan-item-picker__list";
+    list.innerHTML = `<p class="artisan-item-picker__empty">${game.i18n.localize("ARTISAN.ItemPickerLoading")}</p>`;
+
+    const footer = document.createElement("footer");
+    footer.className = "artisan-item-picker__footer";
+    const clearButton = document.createElement("button");
+    clearButton.type = "button";
+    clearButton.className = "artisan-small-button";
+    clearButton.innerHTML = `<i class="fa-solid fa-eraser"></i> ${game.i18n.localize("ARTISAN.ItemPickerClear")}`;
+    footer.append(clearButton);
+    dialog.append(header, toolbar, resultInfo, list, footer);
+    root.append(overlay);
+
+    const close = () => overlay.remove();
+    closeButton.addEventListener("click", close);
+    overlay.addEventListener("mousedown", (event) => {
+      if (event.target === overlay) close();
+    });
+    overlay.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") close();
+    });
+
+    const applySelection = async (choice) => {
+      if (isSourcePicker) {
+        const profileId = trigger.dataset.profileId ?? this.selectedDisassemblyProfileId;
+        if (!profileId) return;
+        await new DisassemblyService().updateProfile(profileId, { sourceUuid: choice?.uuid ?? "" });
+        close();
+        this.renderPreservingUiState();
+        return;
+      }
+      if (!(targetInput instanceof HTMLInputElement)) return;
+      targetInput.value = choice?.uuid ?? "";
+      if (choice) {
+        trigger.classList.add("has-selection");
+        const oldImg = trigger.querySelector("img");
+        if (oldImg) oldImg.remove();
+        const oldIcon = trigger.querySelector("i");
+        if (oldIcon) oldIcon.remove();
+        const img = document.createElement("img");
+        img.src = choice.img || ArtisanItemReference.FALLBACK_IMG;
+        img.alt = choice.name;
+        trigger.prepend(img);
+        const text = trigger.querySelector("span");
+        if (text) text.textContent = choice.name;
+      } else {
+        trigger.classList.remove("has-selection");
+        trigger.querySelector("img")?.remove();
+        if (!trigger.querySelector("i")) {
+          const icon = document.createElement("i");
+          icon.className = "fa-solid fa-box-open";
+          trigger.prepend(icon);
+        }
+        const text = trigger.querySelector("span");
+        if (text) text.textContent = trigger.dataset.artisanPickerDefaultLabel || game.i18n.localize("ARTISAN.SelectItem");
+      }
+      if (targetInput.matches("[data-artisan-harvest-component-field]")) {
+        targetInput.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      close();
+    };
+
+    clearButton.addEventListener("click", () => void applySelection(null));
+    let choices = [];
+    const renderList = () => {
+      const query = search.value.trim().toLocaleLowerCase();
+      const filtered = query ? choices.filter((choice) => {
+        const haystack = `${choice.name} ${choice.type} ${choice.source} ${choice.documentType}`.toLocaleLowerCase();
+        return haystack.includes(query);
+      }) : choices;
+      const visible = filtered.slice(0, 300);
+      resultInfo.textContent = `${filtered.length}${filtered.length > visible.length ? ` (${visible.length} visualizzati)` : ""}`;
+      list.replaceChildren();
+      if (!visible.length) {
+        const empty = document.createElement("p");
+        empty.className = "artisan-item-picker__empty";
+        empty.textContent = game.i18n.localize("ARTISAN.ItemPickerNoResults");
+        list.append(empty);
+        return;
+      }
+      for (const choice of visible) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "artisan-item-picker__choice";
+        const img = document.createElement("img");
+        img.src = choice.img || ArtisanItemReference.FALLBACK_IMG;
+        img.alt = choice.name;
+        const text = document.createElement("span");
+        text.className = "artisan-item-picker__choice-text";
+        const name = document.createElement("strong");
+        name.textContent = choice.name;
+        const meta = document.createElement("small");
+        const kindLabel = choice.documentType === "Actor" ? game.i18n.localize("ARTISAN.ItemPickerActor") : (choice.type || "Item");
+        meta.textContent = `${kindLabel} · ${choice.source}`;
+        text.append(name, meta);
+        button.append(img, text);
+        button.addEventListener("click", () => void applySelection(choice));
+        list.append(button);
+      }
+    };
+    const load = async (forceRefresh = false) => {
+      list.innerHTML = `<p class="artisan-item-picker__empty">${game.i18n.localize("ARTISAN.ItemPickerLoading")}</p>`;
+      try {
+        choices = await this.getItemPickerChoices(kindsValue, forceRefresh);
+        renderList();
+      } catch (error) {
+        console.error("Artisan | Errore selettore Item", error);
+        choices = [];
+        renderList();
+      }
+    };
+    search.addEventListener("input", renderList);
+    refreshButton.addEventListener("click", () => void load(true));
+    search.focus();
+    await load(false);
+  }
   getActorProfessionInlineSummary(actor, profession, multiplierLabel) {
     if (!actor || !profession) {
       return game.i18n.localize("ARTISAN.SelectActorForProfessionRead");
@@ -8066,6 +8168,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     return {
       name: String(recipe?.name ?? recipe?.label ?? item?.name ?? ""),
       category: String(recipe?.category ?? flag?.category ?? ""),
+      subcategory: String(recipe?.subcategory ?? flag?.subcategory ?? ""),
       profession: String(recipe?.profile ?? flag?.profile ?? flag?.profession ?? ""),
       professionLevel: professionService.normalizeLevel(
         recipe?.professionLevel ?? flag?.professionLevel ?? flag?.requiredProfessionLevel ?? 0
@@ -8183,11 +8286,82 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const level = this.recipeFilterLevel;
     return recipes.filter((recipe) => {
       const data = this.getRecipeFilterData(recipe, professionService);
-      const matchesSearch = !search || data.name.toLowerCase().includes(search) || data.category.toLowerCase().includes(search) || data.profession.toLowerCase().includes(search);
+      const matchesSearch = !search || data.name.toLowerCase().includes(search) || data.category.toLowerCase().includes(search) || data.subcategory.toLowerCase().includes(search) || data.profession.toLowerCase().includes(search);
       const matchesProfession = profession === "all" || data.profession === profession;
       const matchesCategory = category === "all" || data.category === category;
       const matchesLevel = level === "all" || data.professionLevel === Number(level);
       return matchesSearch && matchesProfession && matchesCategory && matchesLevel;
+    });
+  }
+  buildRecipeExplorerTree(recipes, professionService, selectedActor) {
+    const makeSlug = (value) => String(value ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "none";
+    const categories = /* @__PURE__ */ new Map();
+    for (const recipe of recipes) {
+      const data = this.getRecipeFilterData(recipe, professionService);
+      const categoryLabel = data.category.trim() || game.i18n.localize("ARTISAN.UncategorizedRecipes");
+      const categoryKey = categoryLabel.toLocaleLowerCase();
+      if (!categories.has(categoryKey)) {
+        categories.set(categoryKey, {
+          id: `recipe-category-${makeSlug(categoryLabel)}`,
+          kind: "recipeCategory",
+          label: categoryLabel,
+          directRecipes: [],
+          subcategoryMap: /* @__PURE__ */ new Map()
+        });
+      }
+      const category = categories.get(categoryKey);
+      const recipeView = {
+        ...recipe,
+        kind: "recipe",
+        ...this.getRecipeCraftingRequirementView(recipe, professionService, selectedActor),
+        selected: this.selectedSectionId === "recipes" && recipe.id === this.selectedRecipeId
+      };
+      const subcategoryLabel = data.subcategory.trim();
+      if (!subcategoryLabel) {
+        category.directRecipes.push(recipeView);
+        continue;
+      }
+      const subcategoryKey = subcategoryLabel.toLocaleLowerCase();
+      if (!category.subcategoryMap.has(subcategoryKey)) {
+        category.subcategoryMap.set(subcategoryKey, {
+          id: `recipe-subcategory-${makeSlug(categoryLabel)}-${makeSlug(subcategoryLabel)}`,
+          kind: "recipeSubcategory",
+          label: subcategoryLabel,
+          recipes: []
+        });
+      }
+      category.subcategoryMap.get(subcategoryKey).recipes.push(recipeView);
+    }
+    return Array.from(categories.values()).sort((a, b) => a.label.localeCompare(b.label)).map((category) => {
+      category.directRecipes.sort((a, b) => String(a.label).localeCompare(String(b.label)));
+      const subcategories = Array.from(category.subcategoryMap.values()).sort((a, b) => a.label.localeCompare(b.label)).map((subcategory) => {
+        subcategory.recipes.sort((a, b) => String(a.label).localeCompare(String(b.label)));
+        const selectedInside = subcategory.recipes.some((recipe) => recipe.selected);
+        const expanded = this.expandedExplorerSectionIds.has(subcategory.id) || selectedInside;
+        return {
+          ...subcategory,
+          count: subcategory.recipes.length,
+          expanded,
+          collapsed: !expanded
+        };
+      });
+      const selectedInside = category.directRecipes.some((recipe) => recipe.selected) || subcategories.some((subcategory) => subcategory.recipes.some((recipe) => recipe.selected));
+      const expanded = this.expandedExplorerSectionIds.has(category.id) || selectedInside;
+      return {
+        id: category.id,
+        kind: category.kind,
+        label: category.label,
+        directRecipes: category.directRecipes,
+        subcategories,
+        count: category.directRecipes.length + subcategories.reduce((total, subcategory) => total + subcategory.count, 0),
+        expanded,
+        collapsed: !expanded
+      };
     });
   }
   getRecipeCategoryOptions(recipes) {
@@ -8665,6 +8839,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     );
     const importedRecipe = {
       category: String(recipe.category ?? ""),
+      subcategory: String(recipe.subcategory ?? ""),
       profile: String(recipe.profile ?? ""),
       professionLevel,
       requiredProfessionLevel: Number(
@@ -8884,6 +9059,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
           version: item.getFlag("artisan", "version") ?? 1,
           recipe: {
             category: String(data.category ?? ""),
+            subcategory: String(data.subcategory ?? ""),
             profile: String(data.profile ?? ""),
             professionLevel: Number(data.professionLevel ?? data.requiredProfessionLevel ?? 0),
             requiredProfessionLevel: Number(data.requiredProfessionLevel ?? data.professionLevel ?? 0),
@@ -8996,11 +9172,13 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     );
     const uuid = uuidInput?.value.trim() ?? "";
     const quantity = Math.max(1, Number(quantityInput?.value || 1));
+    const groupInput = collection === "ingredients" ? panel.querySelector("[data-artisan-component-group]") : null;
+    const ingredientGroup = groupInput ? Math.max(1, Math.floor(Number(groupInput.value || 1))) : null;
     if (!uuid) {
       ui.notifications.warn("Inserisci un UUID.");
       return;
     }
-    await this.addComponentToRecipe(recipeId, collection, uuid, quantity);
+    await this.addComponentToRecipe(recipeId, collection, uuid, quantity, ingredientGroup);
     if (uuidInput) {
       uuidInput.value = "";
     }
@@ -9028,7 +9206,9 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       "[data-artisan-component-quantity]"
     );
     const quantity = Math.max(1, Number(quantityInput?.value || 1));
-    await this.addComponentToRecipe(recipeId, collection, uuid, quantity);
+    const groupInput = collection === "ingredients" ? panel?.querySelector("[data-artisan-component-group]") : null;
+    const ingredientGroup = groupInput ? Math.max(1, Math.floor(Number(groupInput.value || 1))) : null;
+    await this.addComponentToRecipe(recipeId, collection, uuid, quantity, ingredientGroup);
     if (quantityInput) {
       quantityInput.value = "1";
     }
@@ -9057,13 +9237,14 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       return null;
     }
   }
-  async addComponentToRecipe(recipeId, collection, uuid, quantity) {
+  async addComponentToRecipe(recipeId, collection, uuid, quantity, ingredientGroup = null) {
     const recipeService = new RecipeService();
     await recipeService.addRecipeComponent(
       recipeId,
       collection,
       uuid,
-      quantity
+      quantity,
+      ingredientGroup
     );
   }
   async onOpenComponentClicked(target) {
@@ -9085,6 +9266,22 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     const recipeService = new RecipeService();
     await recipeService.removeRecipeComponent(recipeId, collection, index);
+    this.renderPreservingUiState();
+  }
+  async onComponentGroupChanged(target) {
+    const recipeId = target.dataset.recipeId;
+    const collection = target.dataset.collection;
+    const index = Number(target.dataset.index);
+    if (!recipeId || collection !== "ingredients" || Number.isNaN(index)) {
+      return;
+    }
+    const recipeService = new RecipeService();
+    await recipeService.updateRecipeComponentGroup(
+      recipeId,
+      collection,
+      index,
+      Math.max(1, Math.floor(Number(target.value || 1)))
+    );
     this.renderPreservingUiState();
   }
   async onActorProfessionFieldChanged(target) {
@@ -9313,6 +9510,9 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     if (rarityInput) {
       rarityInput.value = "common";
     }
+    if (xpInput) {
+      xpInput.value = "0";
+    }
     if (minQuantityInput) {
       minQuantityInput.value = "1";
     }
@@ -9407,11 +9607,14 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const service = new ForagingService();
     const profile = service.getProfile(profileId);
     const actor = canvas?.tokens?.controlled?.[0]?.actor ?? null;
-    await service.startForaging(profileId);
+    const root = this.getRootElement();
+    const hoursInput = root?.querySelector(`[data-artisan-foraging-attempt-hours][data-profile-id="${profileId}"]`);
+    const requestedHours = hoursInput ? Number(hoursInput.value) : Number(profile?.time ?? 1);
+    await service.startForaging(profileId, requestedHours);
     void this.addActivityLogEntry(
       "foraging",
       "Raccolta eseguita",
-      `Eseguita raccolta${profile ? `: ${profile.name}` : ""}.`,
+      `Eseguita raccolta${profile ? `: ${profile.name}` : ""} per ${Math.max(Number(profile?.time ?? 1), requestedHours || 0)} ore.`,
       actor?.name ?? ""
     );
   }
@@ -9601,6 +9804,9 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const rarityInput = panel.querySelector(
       "[data-artisan-harvest-component-rarity]"
     );
+    const xpInput = panel.querySelector(
+      "[data-artisan-harvest-component-xp]"
+    );
     const requiredToolInput = panel.querySelector(
       "[data-artisan-harvest-component-required-tool-uuid]"
     );
@@ -9616,6 +9822,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       Number(maxQuantityInput?.value || minQuantity)
     );
     const rarity = rarityInput?.value || "common";
+    const xp = Math.max(0, Math.floor(Number(xpInput?.value || 1)));
     const requiredToolUuid = requiredToolInput?.value.trim() || void 0;
     if (!uuid) {
       ui.notifications.warn("Inserisci un UUID.");
@@ -9627,6 +9834,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       minQuantity,
       maxQuantity,
       rarity,
+      xp,
       requiredToolUuid
     });
     if (uuidInput) {
@@ -9646,6 +9854,9 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     if (rarityInput) {
       rarityInput.value = "common";
+    }
+    if (xpInput) {
+      xpInput.value = "1";
     }
     if (requiredToolInput) {
       requiredToolInput.value = "";
@@ -9682,6 +9893,9 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const rarityInput = panel?.querySelector(
       "[data-artisan-harvest-component-rarity]"
     );
+    const xpInput = panel?.querySelector(
+      "[data-artisan-harvest-component-xp]"
+    );
     const requiredToolInput = panel?.querySelector(
       "[data-artisan-harvest-component-required-tool-uuid]"
     );
@@ -9696,6 +9910,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       Number(maxQuantityInput?.value || minQuantity)
     );
     const rarity = rarityInput?.value || "common";
+    const xp = Math.max(0, Math.floor(Number(xpInput?.value || 1)));
     const requiredToolUuid = requiredToolInput?.value.trim() || void 0;
     const service = new HarvestService();
     await service.addComponent(profileId, collection, uuid, quantity, {
@@ -9703,6 +9918,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       minQuantity,
       maxQuantity,
       rarity,
+      xp,
       requiredToolUuid
     });
     if (quantityInput) {
@@ -10581,4 +10797,3 @@ var Artisan = class _Artisan {
 Hooks.once("init", () => {
   Artisan.initialize();
 });
-//# sourceMappingURL=module.js.map
