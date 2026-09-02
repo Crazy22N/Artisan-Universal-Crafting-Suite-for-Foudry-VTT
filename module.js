@@ -998,15 +998,14 @@ var CraftingService = class {
       ui.notifications.warn("Crafting non eseguibile: la ricetta contiene errori.");
       return;
     }
-    const recipeAccess = new RecipeKnowledgeService().getAccessStatus(actor, recipeItem, validation.recipeData);
-    if (!recipeAccess.allowed) {
-      await this.sendCraftingRecipeAccessBlockedToChat(
+    const ownedRecipeCopy = this.findRecipeCopyInActorInventory(actor, recipeItem);
+    if (!ownedRecipeCopy) {
+      await this.sendCraftingRecipeCopyBlockedToChat(
         actor,
         recipeItem,
-        validation,
-        recipeAccess
+        validation
       );
-      ui.notifications.warn(recipeAccess.reason);
+      ui.notifications.warn("Crafting non eseguibile: il PG deve possedere una copia della ricetta nell'inventario.");
       return;
     }
     const professionRequirement = this.getCraftingProfessionRequirement(
@@ -1211,8 +1210,8 @@ var CraftingService = class {
     if (!validation.valid) {
       reasons.push(...validation.errors);
     }
-    const access = new RecipeKnowledgeService().getAccessStatus(actor, recipeItem, validation.recipeData);
-    if (!access.allowed) reasons.push(access.reason);
+    const hasRecipeCopy = Boolean(this.findRecipeCopyInActorInventory(actor, recipeItem));
+    if (!hasRecipeCopy) reasons.push(game.i18n.localize("ARTISAN.RecipeCopyMissing"));
     const professionRequirement = this.getCraftingProfessionRequirement(actor, recipeItem, validation.recipeData);
     if (!professionRequirement.allowed) {
       reasons.push(`${professionRequirement.professionLabel}: ${game.i18n.localize("ARTISAN.RequiredLevel")} ${professionRequirement.requiredLevel}, ${game.i18n.localize("ARTISAN.ActorLevel")} ${professionRequirement.actorLevel}`);
@@ -1233,11 +1232,11 @@ var CraftingService = class {
       }
     }
     return {
-      craftable: validation.valid && access.allowed && professionRequirement.allowed && maxLots > 0,
+      craftable: validation.valid && hasRecipeCopy && professionRequirement.allowed && maxLots > 0,
       maxLots,
       reasons: Array.from(new Set(reasons)),
       validation,
-      access,
+      access: { mode: "copy", allowed: hasRecipeCopy, hasCopy: hasRecipeCopy },
       professionRequirement
     };
   }
@@ -2625,18 +2624,17 @@ var CraftingService = class {
       speaker: ChatMessage.getSpeaker({ actor })
     });
   }
-  async sendCraftingRecipeAccessBlockedToChat(actor, recipeItem, validation, access) {
-    const title = access.mode === "learned" ? game.i18n.localize("ARTISAN.RecipeNotLearned") : game.i18n.localize("ARTISAN.RecipeCopyMissing");
-    const explanation = access.mode === "learned" ? game.i18n.localize("ARTISAN.RecipeLearnRequiredChat") : game.i18n.localize("ARTISAN.RecipeCopyRequiredChat");
+  async sendCraftingRecipeCopyBlockedToChat(actor, recipeItem, validation) {
     const content = `
             <div class="artisan-chat-card">
-                <h2>\u{1F4D6} ${this.escapeHtml(title)}</h2>
+                <h2>\u{1F4D6} Ricetta non posseduta</h2>
                 <p>
                     <strong>${this.escapeHtml(recipeItem.name ?? "Ricetta")}</strong><br>
                     Attore: ${this.escapeHtml(actor.name ?? "Attore")}
                 </p>
                 ${this.buildMessagesHtml("Avvisi ricetta", validation.warnings)}
-                <p><strong>${this.escapeHtml(explanation)}</strong></p>
+                <p><strong>Il PG deve avere una copia della ricetta nel proprio inventario per poterla usare.</strong></p>
+                <p>Trascina o importa la ricetta nell'inventario del PG, poi riprova il crafting.</p>
             </div>
         `;
     await ChatMessage.create({
@@ -7000,7 +6998,6 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const selectedRecipeExplorer = allRecipes.find((recipe) => String(recipe.id) === String(this.selectedRecipeId));
     const selectedRecipeWithCraftability = selectedRecipe ? { ...selectedRecipe, craftability: selectedRecipeExplorer?.craftability ?? null } : null;
     const selectedRecipeRequirement = selectedRecipeWithCraftability ? this.getRecipeCraftingRequirementView(selectedRecipeWithCraftability, professionService, selectedActor) : null;
-    const selectedRecipeAccess = selectedRecipeItem && selectedRecipe ? new RecipeKnowledgeService().getAccessStatus(selectedActor, selectedRecipeItem, selectedRecipe) : null;
     const selectedRecipeView = selectedRecipe ? {
       ...selectedRecipe,
       ingredientGroups: Array.from(selectedRecipe.ingredients.reduce((groups, ingredient) => {
@@ -7014,12 +7011,6 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         hasAlternatives: group.ingredients.length > 1
       })),
       ...selectedRecipeRequirement,
-      knowledgeModeLabel: selectedRecipeAccess?.modeLabel ?? "",
-      actorHasLearnedRecipe: Boolean(selectedRecipeAccess?.learned),
-      actorHasRecipeCopy: Boolean(selectedRecipeAccess?.hasCopy),
-      showLearnRecipeButton: Boolean(selectedActor && selectedRecipeAccess?.mode === "learned" && !selectedRecipeAccess.learned && selectedRecipeAccess.hasCopy && new RecipeKnowledgeService().canManageActor(selectedActor)),
-      showGrantRecipeButton: Boolean(game.user?.isGM && selectedActor && selectedRecipeAccess?.mode === "learned" && !selectedRecipeAccess.learned && !selectedRecipeAccess.hasCopy),
-      showForgetRecipeButton: Boolean(game.user?.isGM && selectedActor && selectedRecipeAccess?.learned),
       professionLevel: selectedRecipeProfessionLevel,
       craftingMultiplier: professionService.getCraftingMultiplier(
         selectedRecipeProfessionLevel
@@ -7502,18 +7493,6 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       if (globalAuditButton) {
         event.preventDefault();
         void this.onRunGlobalAuditClicked();
-        return;
-      }
-      const learnRecipeButton = target.closest("[data-artisan-learn-recipe]");
-      if (learnRecipeButton) {
-        event.preventDefault();
-        void this.onLearnRecipeClicked(learnRecipeButton);
-        return;
-      }
-      const forgetRecipeButton = target.closest("[data-artisan-forget-recipe]");
-      if (forgetRecipeButton) {
-        event.preventDefault();
-        void this.onForgetRecipeClicked(forgetRecipeButton);
         return;
       }
       const rollCraftingButton = target.closest(
@@ -8543,10 +8522,10 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const actorLevel = actorProfession?.level ?? 0;
     const hasActor = Boolean(actor);
     const recipeItem = recipe?.id ? game.items.get(String(recipe.id)) : null;
-    const access = recipeItem ? new RecipeKnowledgeService().getAccessStatus(actor, recipeItem, recipe) : null;
+    const hasRecipeCopy = Boolean(actor && recipeItem && this.actorHasRecipeCopy(actor, recipeItem));
     const requirementMet = requiredLevel <= 0 || actorLevel >= requiredLevel;
     const craftability = recipe?.craftability ?? null;
-    const canCraft = craftability ? Boolean(craftability.craftable) : Boolean(hasActor && access?.allowed && requirementMet);
+    const canCraft = craftability ? Boolean(craftability.craftable) : Boolean(hasActor && hasRecipeCopy && requirementMet);
     if (!hasActor) {
       return {
         canCraft: false,
@@ -8560,19 +8539,18 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         actorProfessionLevel: 0
       };
     }
-    if (!access?.allowed) {
-      const learnedMode = access?.mode === "learned";
+    if (!hasRecipeCopy) {
       return {
         canCraft: false,
         recipeLocked: true,
         recipeStatusClass: "is-locked",
-        recipeStatusIcon: learnedMode ? "fa-solid fa-graduation-cap" : "fa-solid fa-book",
-        recipeStatusLabel: learnedMode ? game.i18n.localize("ARTISAN.RecipeNotLearned") : game.i18n.localize("ARTISAN.RecipeCopyMissing"),
-        recipeStatusTitle: `${actor?.name ?? "PG"}: ${learnedMode ? game.i18n.localize("ARTISAN.RecipeLearnRequiredTitle") : game.i18n.localize("ARTISAN.RecipeCopyRequiredTitle")}`,
+        recipeStatusIcon: "fa-solid fa-book",
+        recipeStatusLabel: game.i18n.localize("ARTISAN.RecipeCopyMissing"),
+        recipeStatusTitle: `${actor?.name ?? "PG"}: ${game.i18n.localize("ARTISAN.RecipeCopyRequiredTitle")}`,
         requiredProfessionLabel: professionLabel,
         requiredProfessionLevel: requiredLevel,
         actorProfessionLevel: actorLevel,
-        craftabilityReasons: craftability?.reasons ?? [access?.reason].filter(Boolean)
+        craftabilityReasons: craftability?.reasons ?? [game.i18n.localize("ARTISAN.RecipeCopyMissing")]
       };
     }
     if (!requirementMet) {
@@ -8944,71 +8922,6 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     });
     root.append(overlay);
     overlay.querySelector("[data-artisan-close-audit]")?.focus();
-  }
-  async onLearnRecipeClicked(target) {
-    const actor = canvas?.tokens?.controlled?.[0]?.actor ?? null;
-    const recipeId = target.dataset.recipeId ?? this.selectedRecipeId;
-    const recipeItem = recipeId ? game.items.get(recipeId) : null;
-    if (!actor || !recipeItem) {
-      ui.notifications.warn(game.i18n.localize("ARTISAN.SelectActor"));
-      return;
-    }
-    const grant = target.dataset.grant === "true";
-    const recipe = RecipeDocument.getData(recipeItem);
-    const confirmed = await this.confirmKnowledgeAction(
-      grant ? game.i18n.localize("ARTISAN.GrantRecipe") : game.i18n.localize("ARTISAN.LearnRecipe"),
-      grant ? game.i18n.format("ARTISAN.GrantRecipeConfirm", { actor: actor.name, recipe: recipeItem.name }) : game.i18n.format(recipe.consumeRecipeOnLearn ? "ARTISAN.LearnRecipeConsumeConfirm" : "ARTISAN.LearnRecipeConfirm", { actor: actor.name, recipe: recipeItem.name })
-    );
-    if (!confirmed) return;
-    try {
-      const outcome = await new RecipeKnowledgeService().learnRecipe(actor, recipeItem, {
-        grant,
-        consumeCopy: !grant && recipe.consumeRecipeOnLearn
-      });
-      if (outcome.alreadyLearned) {
-        ui.notifications.info(game.i18n.localize("ARTISAN.RecipeAlreadyLearned"));
-      } else {
-        ui.notifications.info(game.i18n.format("ARTISAN.RecipeLearnedSuccess", { actor: actor.name, recipe: recipeItem.name }));
-      }
-      this.renderPreservingUiState();
-    } catch (error) {
-      ui.notifications.error(error?.message ?? game.i18n.localize("ARTISAN.RecipeLearnFailed"));
-    }
-  }
-  async onForgetRecipeClicked(target) {
-    const actor = canvas?.tokens?.controlled?.[0]?.actor ?? null;
-    const recipeId = target.dataset.recipeId ?? this.selectedRecipeId;
-    const recipeItem = recipeId ? game.items.get(recipeId) : null;
-    if (!actor || !recipeItem) {
-      ui.notifications.warn(game.i18n.localize("ARTISAN.SelectActor"));
-      return;
-    }
-    const confirmed = await this.confirmKnowledgeAction(
-      game.i18n.localize("ARTISAN.ForgetRecipe"),
-      game.i18n.format("ARTISAN.ForgetRecipeConfirm", { actor: actor.name, recipe: recipeItem.name })
-    );
-    if (!confirmed) return;
-    try {
-      await new RecipeKnowledgeService().forgetRecipe(actor, recipeItem);
-      ui.notifications.info(game.i18n.format("ARTISAN.RecipeForgottenSuccess", { actor: actor.name, recipe: recipeItem.name }));
-      this.renderPreservingUiState();
-    } catch (error) {
-      ui.notifications.error(error?.message ?? game.i18n.localize("ARTISAN.RecipeForgetFailed"));
-    }
-  }
-  async confirmKnowledgeAction(title, content) {
-    return new Promise((resolve) => {
-      new Dialog({
-        title,
-        content: `<p>${String(content).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</p>`,
-        buttons: {
-          cancel: { label: game.i18n.localize("ARTISAN.Cancel"), callback: () => resolve(false) },
-          confirm: { label: game.i18n.localize("ARTISAN.Confirm"), callback: () => resolve(true) }
-        },
-        default: "confirm",
-        close: () => resolve(false)
-      }).render(true);
-    });
   }
   async onRecipeFieldChanged(target) {
     const recipeId = target.dataset.recipeId;

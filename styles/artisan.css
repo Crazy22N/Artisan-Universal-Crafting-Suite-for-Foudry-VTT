@@ -4502,31 +4502,10 @@
   grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
 }
 
-.artisan-recipe-requirement-card__actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  align-items: center;
-  gap: 6px;
-}
-
-.artisan-recipe-requirement-card small {
-  display: block;
-  margin-top: 4px;
-  color: var(--artisan-muted, #756554);
-}
-
 .artisan-recipe-status-badge.is-unavailable,
 .artisan-recipe-requirement-card.is-unavailable {
   background: rgba(177, 125, 52, .12) !important;
   border-color: rgba(177, 125, 52, .38) !important;
-}
-
-.artisan-small-button--danger,
-.artisan-manager [data-artisan-forget-recipe] {
-  background: linear-gradient(180deg, #fff7f5, #ead6d2) !important;
-  border-color: rgba(138, 63, 53, .48) !important;
-  color: #742f28 !important;
 }
 
 .artisan-button--audit {
@@ -4654,5 +4633,4 @@
 @media (max-width: 760px) {
   .artisan-audit-overlay { padding: 10px; }
   .artisan-audit-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .artisan-recipe-requirement-card__actions { justify-content: flex-start; }
 }

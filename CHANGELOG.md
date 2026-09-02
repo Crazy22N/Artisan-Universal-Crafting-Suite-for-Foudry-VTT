@@ -8,16 +8,16 @@ All notable changes to Artisan are documented in this file.
 ### Italiano
 
 - Corretto il posizionamento della finestra Artisan: l'apertura non sposta più la colonna laterale di Foundry al centro dello schermo.
-- Il consumo della copia durante l'apprendimento è ora disattivato per impostazione predefinita nelle ricette nuove o prive di questa configurazione.
-- La conferma di apprendimento indica chiaramente se la copia resterà nell'inventario oppure verrà rimossa.
-- Le ricette già apprese restano salvate nei dati Artisan del personaggio anche quando la relativa copia è stata consumata.
+- Ripristinato il modello semplice delle ricette: per creare, il PG selezionato deve possedere una copia dell'Item ricetta nel proprio inventario.
+- Rimosse dall'interfaccia le modalità ricetta pubblica/appresa e le azioni Impara, Concedi e Revoca.
+- Il filtro “Creabile adesso” verifica nuovamente la presenza effettiva della copia nell'inventario.
 
 ### English
 
 - Fixed Artisan window positioning so opening it no longer moves Foundry's sidebar toward the center of the screen.
-- Consuming the recipe copy while learning is now disabled by default for new recipes and recipes without an explicit setting.
-- The learning confirmation now clearly states whether the inventory copy will remain or be removed.
-- Learned recipes remain stored in the character's Artisan data even when their inventory copy was consumed.
+- Restored the simple recipe model: the selected character must own a copy of the recipe Item in their inventory to craft.
+- Removed public/learned recipe modes and Learn, Grant and Revoke actions from the interface.
+- The “Craftable now” filter once again checks for the actual inventory copy.
 
 ## [1.3.1] - 2026-09-02
 
@@ -25,25 +25,19 @@ All notable changes to Artisan are documented in this file.
 
 - Aggiunto il controllo globale GM per verificare Ricette, Raccolta, Caccia e Dissassemblare in un unico riepilogo, senza pubblicare messaggi in chat.
 - Il controllo segnala output e sorgenti mancanti, strumenti obbligatori non configurati, riferimenti UUID non validi, probabilità qualità oltre il 100% e nomi duplicati.
-- Aggiunto il filtro “Creabile adesso”, calcolato sul PG selezionato in base ad accesso alla ricetta, professione, ingredienti, strumenti e monete disponibili.
+- Aggiunto il filtro “Creabile adesso”, calcolato sul PG selezionato in base alla ricetta posseduta, professione, ingredienti, strumenti e monete disponibili.
 - Il numero massimo di produzioni considera correttamente gli ingredienti alternativi dello stesso gruppo.
-- Aggiunte tre modalità di accesso per ricetta: copia nell'inventario, apprendimento permanente e ricetta pubblica.
-- Il GM può concedere o revocare una ricetta appresa; il giocatore può apprenderla da una copia, consumandola quando configurato.
-- Importazione ed esportazione ricette preservano modalità di accesso, consumo della copia e gruppi di ingredienti alternativi.
-- Il backup completo include anche le ricette apprese dai personaggi ed è compatibile con i backup precedenti.
-- Nessuna migrazione richiesta: le ricette esistenti mantengono la modalità classica con copia nell'inventario.
+- Importazione ed esportazione ricette preservano correttamente i gruppi di ingredienti alternativi.
+- Nessuna migrazione richiesta: le ricette continuano a richiedere una copia nell'inventario.
 
 ### English
 
 - Added a GM global audit for Recipes, Gathering, Hunting and Disassembly in one report without posting chat messages.
 - The audit reports missing outputs and sources, unconfigured required tools, invalid UUID references, quality chances above 100%, and duplicate names.
-- Added a “Craftable now” filter calculated for the selected character from recipe access, profession, ingredients, tools and available currency.
+- Added a “Craftable now” filter calculated for the selected character from recipe ownership, profession, ingredients, tools and available currency.
 - Maximum crafting lots now correctly account for alternative ingredients in the same group.
-- Added three recipe access modes: inventory copy, permanently learned, and public.
-- The GM can grant or revoke learned recipes; players can learn from a copy and consume it when configured.
-- Recipe import and export preserve access mode, copy consumption and alternative ingredient groups.
-- Full backups now include character learned recipes and remain compatible with older backups.
-- No migration is required: existing recipes retain the classic inventory-copy mode.
+- Recipe import and export correctly preserve alternative ingredient groups.
+- No migration is required: recipes continue to require an inventory copy.
 
 ## [1.3.0] - 2026-08-29
 
