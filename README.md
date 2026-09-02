@@ -1,6 +1,6 @@
 # Artisan — Crafting, Gathering & Professions for Foundry VTT
 
-**Versione / Version:** 1.3.0  
+**Versione / Version:** 1.3.1  
 **Foundry VTT:** v14, verificato su / verified on build 14.367  
 **Lingue / Languages:** Italiano, English
 
@@ -17,7 +17,9 @@ Il modulo permette al GM di creare ricette, liste di raccolta, liste di caccia e
 - **Creazione / Crafting**
   - Ricette salvate come Item Artisan.
   - Ingredienti trascinabili da mondo o compendio tramite UUID.
-  - Il PG deve possedere una copia della ricetta nell'inventario.
+  - Accesso configurabile per ricetta: copia nell'inventario, apprendimento permanente oppure ricetta pubblica.
+  - Il GM può concedere o revocare una ricetta appresa; l'apprendimento può consumare la copia posseduta.
+  - Filtro “Creabile adesso” basato su accesso, professione, ingredienti, strumenti e monete del PG selezionato.
   - XP personalizzabile per singola ricetta.
   - Costo monetario per ricetta, con scelta se consumare il costo anche in caso di fallimento.
   - Strumenti obbligatori o facoltativi.
@@ -62,6 +64,7 @@ Il modulo permette al GM di creare ricette, liste di raccolta, liste di caccia e
   - Liste ordinate senza duplicazioni nelle sezioni centrali.
   - Scroll e posizione della finestra preservati dopo clic, salvataggi e aggiornamenti.
   - Registro attività, import/export e backup dei dati.
+  - Controllo globale GM su ricette, Raccolta, Caccia e Dissassemblare, con segnalazione di UUID mancanti e configurazioni incomplete.
 
 ### Compatibilità sistemi di gioco
 
@@ -80,7 +83,9 @@ The module lets the GM create recipes, gathering lists, hunting lists and disass
 - **Crafting**
   - Recipes saved as Artisan Items.
   - Ingredients can be dragged from world Items or compendia through UUIDs.
-  - The character must own a copy of the recipe in their inventory.
+  - Per-recipe access mode: inventory copy, permanently learned recipe, or public recipe.
+  - The GM can grant or revoke learned recipes; learning can consume the owned copy.
+  - “Craftable now” filter based on the selected character's access, profession, ingredients, tools and currency.
   - Custom XP per recipe.
   - Monetary cost per recipe, with an option to consume the cost even on failure.
   - Required or optional tools.
@@ -125,6 +130,7 @@ The module lets the GM create recipes, gathering lists, hunting lists and disass
   - Organized lists without duplicate entries in the main sections.
   - Scroll position is preserved after clicks, saves and updates.
   - Activity log, import/export and data backup.
+  - GM global audit for recipes, Gathering, Hunting and Disassembly, including missing UUIDs and incomplete configuration warnings.
 
 ### Game system compatibility
 
@@ -142,7 +148,7 @@ https://github.com/Crazy22N/Artisan-Universal-Crafting-Suite-for-Foudry-VTT/rele
 
 ## Installazione manuale / Manual installation
 
-1. Download `artisan-v1.3.0.zip` from the GitHub release.
+1. Download `artisan-v1.3.1.zip` from the GitHub release.
 2. Extract the `artisan` folder into Foundry VTT's `Data/modules/` folder.
 3. Restart Foundry VTT and enable Artisan in your world.
 

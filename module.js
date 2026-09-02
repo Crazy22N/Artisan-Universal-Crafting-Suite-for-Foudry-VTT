@@ -114,6 +114,8 @@ var RecipeDocument = class {
       currencyCost: 0,
       currencyDenomination: "gp",
       consumeCurrencyOnFailure: false,
+      knowledgeMode: "copy",
+      consumeRecipeOnLearn: true,
       toolRequirement: "optional",
       toolCriticalDamage: false,
       qualityMode: "margin",
@@ -156,6 +158,8 @@ var RecipeDocument = class {
       currencyCost: Math.max(0, Number(merged.currencyCost ?? merged.goldCost ?? 0)),
       currencyDenomination: this.normalizeCurrencyDenomination(merged.currencyDenomination ?? merged.currency ?? "gp"),
       consumeCurrencyOnFailure: Boolean(merged.consumeCurrencyOnFailure ?? false),
+      knowledgeMode: this.normalizeKnowledgeMode(merged.knowledgeMode ?? "copy"),
+      consumeRecipeOnLearn: Boolean(merged.consumeRecipeOnLearn ?? true),
       toolRequirement: String(merged.toolRequirement || "optional") === "required" ? "required" : "optional",
       toolCriticalDamage: Boolean(merged.toolCriticalDamage ?? false),
       qualityMode: this.normalizeQualityMode(merged.qualityMode ?? "margin"),
@@ -334,6 +338,8 @@ var RecipeDocument = class {
       currencyCost: recipe.currencyCost,
       currencyDenomination: recipe.currencyDenomination,
       consumeCurrencyOnFailure: recipe.consumeCurrencyOnFailure,
+      knowledgeMode: recipe.knowledgeMode,
+      consumeRecipeOnLearn: recipe.consumeRecipeOnLearn,
       toolRequirement: recipe.toolRequirement,
       toolCriticalDamage: recipe.toolCriticalDamage,
       qualityMode: recipe.qualityMode,
@@ -395,6 +401,10 @@ var RecipeDocument = class {
       platinum: "pp"
     };
     return aliases[raw] ?? "gp";
+  }
+  static normalizeKnowledgeMode(value) {
+    const raw = String(value ?? "copy").trim().toLowerCase();
+    return ["copy", "learned", "public"].includes(raw) ? raw : "copy";
   }
   static normalizeQualityEffectType(value) {
     const raw = String(value ?? "auto").trim().toLowerCase();
@@ -475,6 +485,150 @@ var RecipeRepository = class {
       return void 0;
     }
     return item;
+  }
+};
+
+// src/services/recipe-knowledge-service.ts
+var RecipeKnowledgeService = class {
+  static FLAG_SCOPE = "artisan";
+  static FLAG_KEY = "learnedRecipes";
+  normalizeMode(value) {
+    return RecipeDocument.normalizeKnowledgeMode(value);
+  }
+  getMode(recipeItem, recipeData = null) {
+    const data = recipeData && Object.prototype.hasOwnProperty.call(recipeData, "knowledgeMode") ? recipeData : RecipeDocument.getData(recipeItem);
+    return this.normalizeMode(data?.knowledgeMode ?? "copy");
+  }
+  getModeLabel(mode) {
+    const labels = {
+      copy: "ARTISAN.KnowledgeModeCopy",
+      learned: "ARTISAN.KnowledgeModeLearned",
+      public: "ARTISAN.KnowledgeModePublic"
+    };
+    return game.i18n.localize(labels[this.normalizeMode(mode)]);
+  }
+  normalizeName(value) {
+    return String(value ?? "").trim().toLocaleLowerCase();
+  }
+  getRecipeIdentityKeys(item) {
+    if (!item) return /* @__PURE__ */ new Set();
+    const flags = item.flags ?? {};
+    const stats = item._stats ?? {};
+    const keys = [
+      item.uuid,
+      flags?.artisan?.sourceUuid,
+      flags?.core?.sourceId,
+      stats?.compendiumSource,
+      stats?.sourceId
+    ].filter((value) => typeof value === "string" && value.trim().length > 0).map((value) => String(value).trim());
+    const name = this.normalizeName(item.name);
+    if (name) keys.push(`name:${name}`);
+    return new Set(keys);
+  }
+  getLearnedRecords(actor) {
+    if (!actor) return [];
+    const value = actor.getFlag(this.constructor.FLAG_SCOPE, this.constructor.FLAG_KEY);
+    if (!Array.isArray(value)) return [];
+    return value.map((entry) => {
+      if (typeof entry === "string") {
+        return { keys: [entry], name: entry, learnedAt: "" };
+      }
+      if (!entry || typeof entry !== "object") return null;
+      const keys = Array.isArray(entry.keys) ? entry.keys : [entry.uuid, entry.key].filter(Boolean);
+      return {
+        keys: Array.from(new Set(keys.map((key) => String(key).trim()).filter(Boolean))),
+        name: String(entry.name ?? ""),
+        learnedAt: String(entry.learnedAt ?? "")
+      };
+    }).filter(Boolean);
+  }
+  actorHasLearnedRecipe(actor, recipeItem) {
+    if (!actor || !recipeItem) return false;
+    const recipeKeys = this.getRecipeIdentityKeys(recipeItem);
+    return this.getLearnedRecords(actor).some((record) => record.keys.some((key) => recipeKeys.has(key)));
+  }
+  isItemOwnedByActor(actor, item) {
+    const parent = item?.parent ?? null;
+    const itemActor = item?.actor ?? null;
+    return parent?.id === actor?.id || itemActor?.id === actor?.id || parent === actor || itemActor === actor;
+  }
+  findRecipeCopy(actor, recipeItem) {
+    if (!actor || !recipeItem) return null;
+    if (this.isItemOwnedByActor(actor, recipeItem)) return recipeItem;
+    const recipeKeys = this.getRecipeIdentityKeys(recipeItem);
+    const recipeName = this.normalizeName(recipeItem.name);
+    const recipeType = recipeItem.type;
+    return Array.from(actor.items ?? []).find((candidate) => {
+      if (!RecipeDocument.isRecipe(candidate)) return false;
+      const candidateKeys = this.getRecipeIdentityKeys(candidate);
+      if ([...candidateKeys].some((key) => recipeKeys.has(key))) return true;
+      const sameName = this.normalizeName(candidate.name) === recipeName;
+      const sameType = recipeType ? candidate.type === recipeType : true;
+      return sameName && sameType;
+    }) ?? null;
+  }
+  getAccessStatus(actor, recipeItem, recipeData = null) {
+    const mode = this.getMode(recipeItem, recipeData);
+    const hasActor = Boolean(actor);
+    const hasCopy = Boolean(hasActor && this.findRecipeCopy(actor, recipeItem));
+    const learned = Boolean(hasActor && this.actorHasLearnedRecipe(actor, recipeItem));
+    const allowed = mode === "public" ? hasActor : mode === "learned" ? learned : hasCopy;
+    let reasonKey = "ARTISAN.RecipeAccessAllowed";
+    if (!hasActor) reasonKey = "ARTISAN.SelectActor";
+    else if (mode === "copy" && !hasCopy) reasonKey = "ARTISAN.RecipeCopyMissing";
+    else if (mode === "learned" && !learned) reasonKey = "ARTISAN.RecipeNotLearned";
+    return {
+      mode,
+      modeLabel: this.getModeLabel(mode),
+      hasActor,
+      hasCopy,
+      learned,
+      allowed,
+      reason: game.i18n.localize(reasonKey)
+    };
+  }
+  canManageActor(actor) {
+    return Boolean(actor && (game.user?.isGM || actor.isOwner));
+  }
+  async learnRecipe(actor, recipeItem, { consumeCopy = true, grant = false } = {}) {
+    if (!this.canManageActor(actor)) {
+      throw new Error(game.i18n.localize("ARTISAN.RecipeLearnPermissionDenied"));
+    }
+    if (this.actorHasLearnedRecipe(actor, recipeItem)) {
+      return { learned: false, alreadyLearned: true, consumed: false };
+    }
+    const copy = this.findRecipeCopy(actor, recipeItem);
+    if (!grant && !copy) {
+      throw new Error(game.i18n.localize("ARTISAN.RecipeCopyMissing"));
+    }
+    const records = this.getLearnedRecords(actor);
+    records.push({
+      keys: Array.from(this.getRecipeIdentityKeys(recipeItem)),
+      name: String(recipeItem.name ?? ""),
+      learnedAt: new Date().toISOString()
+    });
+    await actor.setFlag(this.constructor.FLAG_SCOPE, this.constructor.FLAG_KEY, records);
+    let consumed = false;
+    if (!grant && consumeCopy && copy) {
+      const quantity = Math.max(1, Number(foundry.utils.getProperty(copy, "system.quantity") ?? 1));
+      if (quantity > 1) {
+        await copy.update({ "system.quantity": quantity - 1 });
+      } else {
+        await copy.delete();
+      }
+      consumed = true;
+    }
+    return { learned: true, alreadyLearned: false, consumed };
+  }
+  async forgetRecipe(actor, recipeItem) {
+    if (!game.user?.isGM) {
+      throw new Error(game.i18n.localize("ARTISAN.RecipeForgetPermissionDenied"));
+    }
+    const recipeKeys = this.getRecipeIdentityKeys(recipeItem);
+    const records = this.getLearnedRecords(actor);
+    const next = records.filter((record) => !record.keys.some((key) => recipeKeys.has(key)));
+    await actor.setFlag(this.constructor.FLAG_SCOPE, this.constructor.FLAG_KEY, next);
+    return records.length !== next.length;
   }
 };
 
@@ -844,14 +998,15 @@ var CraftingService = class {
       ui.notifications.warn("Crafting non eseguibile: la ricetta contiene errori.");
       return;
     }
-    const ownedRecipeCopy = this.findRecipeCopyInActorInventory(actor, recipeItem);
-    if (!ownedRecipeCopy) {
-      await this.sendCraftingRecipeCopyBlockedToChat(
+    const recipeAccess = new RecipeKnowledgeService().getAccessStatus(actor, recipeItem, validation.recipeData);
+    if (!recipeAccess.allowed) {
+      await this.sendCraftingRecipeAccessBlockedToChat(
         actor,
         recipeItem,
-        validation
+        validation,
+        recipeAccess
       );
-      ui.notifications.warn("Crafting non eseguibile: il PG deve possedere una copia della ricetta nell'inventario.");
+      ui.notifications.warn(recipeAccess.reason);
       return;
     }
     const professionRequirement = this.getCraftingProfessionRequirement(
@@ -1011,6 +1166,15 @@ var CraftingService = class {
     if (recipe.tools.length === 0) {
       warnings.push("La ricetta non richiede strumenti.");
     }
+    if (this.getRecipeToolRequirement(recipe) === "required" && recipe.tools.length === 0) {
+      errors.push(game.i18n.localize("ARTISAN.RequiredToolsMissing"));
+    }
+    if (recipe.qualityMode === "chance") {
+      const qualityChanceTotal = Number(recipe.qualityChanceGood ?? 0) + Number(recipe.qualityChanceSuperior ?? 0) + Number(recipe.qualityChanceExcellent ?? 0);
+      if (qualityChanceTotal > 100) {
+        errors.push(game.i18n.localize("ARTISAN.QualityChanceTotalInvalid"));
+      }
+    }
     for (const entry of entries) {
       if (!entry.found) {
         errors.push(`${entry.collectionLabel}: UUID non trovato \u2192 ${entry.uuid}`);
@@ -1028,6 +1192,53 @@ var CraftingService = class {
       entries,
       errors,
       warnings
+    };
+  }
+  async getCraftabilityStatus(recipeItem, actor) {
+    const reasons = [];
+    if (!actor) {
+      reasons.push(game.i18n.localize("ARTISAN.SelectActorCraftableFilter"));
+      return {
+        craftable: false,
+        maxLots: 0,
+        reasons,
+        validation: null,
+        access: null,
+        professionRequirement: null
+      };
+    }
+    const validation = await this.buildValidationResult(recipeItem);
+    if (!validation.valid) {
+      reasons.push(...validation.errors);
+    }
+    const access = new RecipeKnowledgeService().getAccessStatus(actor, recipeItem, validation.recipeData);
+    if (!access.allowed) reasons.push(access.reason);
+    const professionRequirement = this.getCraftingProfessionRequirement(actor, recipeItem, validation.recipeData);
+    if (!professionRequirement.allowed) {
+      reasons.push(`${professionRequirement.professionLabel}: ${game.i18n.localize("ARTISAN.RequiredLevel")} ${professionRequirement.requiredLevel}, ${game.i18n.localize("ARTISAN.ActorLevel")} ${professionRequirement.actorLevel}`);
+    }
+    let maxLots = 0;
+    if (validation.valid) {
+      maxLots = this.calculateMaxLots(actor, validation);
+      if (maxLots <= 0) {
+        const context = this.buildExecutionContext(actor, recipeItem, validation, 1, 0);
+        const missing = this.getBlockingMissingMatches(context);
+        for (const match of missing) {
+          const name = match.recipeEntry?.name ?? match.recipeEntry?.uuid ?? game.i18n.localize("ARTISAN.Unknown");
+          reasons.push(`${name}: ${game.i18n.localize("ARTISAN.InsufficientQuantity")}`);
+        }
+        if (!context.currency.sufficient) {
+          reasons.push(game.i18n.localize("ARTISAN.InsufficientCurrency"));
+        }
+      }
+    }
+    return {
+      craftable: validation.valid && access.allowed && professionRequirement.allowed && maxLots > 0,
+      maxLots,
+      reasons: Array.from(new Set(reasons)),
+      validation,
+      access,
+      professionRequirement
     };
   }
   async validateCollection(collection, components) {
@@ -1230,14 +1441,20 @@ var CraftingService = class {
     if (ingredientEntries.length === 0) {
       return Math.max(0, currencyMaxLots);
     }
-    const availableLots = ingredientEntries.map((entry) => {
-      const actorItem = this.findMatchingActorItem(actor, entry);
-      if (!actorItem) {
-        return 0;
-      }
-      const available = this.getItemQuantity(actorItem);
-      const required = Math.max(1, Number(entry.quantity || 1));
-      return Math.floor(available / required);
+    const ingredientGroups = /* @__PURE__ */ new Map();
+    for (const entry of ingredientEntries) {
+      const group = Math.max(1, Math.floor(Number(entry.ingredientGroup ?? 1)));
+      if (!ingredientGroups.has(group)) ingredientGroups.set(group, []);
+      ingredientGroups.get(group).push(entry);
+    }
+    const availableLots = Array.from(ingredientGroups.values()).map((entries) => {
+      return Math.max(0, ...entries.map((entry) => {
+        const actorItem = this.findMatchingActorItem(actor, entry);
+        if (!actorItem) return 0;
+        const available = this.getItemQuantity(actorItem);
+        const required = Math.max(1, Number(entry.quantity || 1));
+        return Math.floor(available / required);
+      }));
     });
     return Math.max(
       0,
@@ -2408,17 +2625,18 @@ var CraftingService = class {
       speaker: ChatMessage.getSpeaker({ actor })
     });
   }
-  async sendCraftingRecipeCopyBlockedToChat(actor, recipeItem, validation) {
+  async sendCraftingRecipeAccessBlockedToChat(actor, recipeItem, validation, access) {
+    const title = access.mode === "learned" ? game.i18n.localize("ARTISAN.RecipeNotLearned") : game.i18n.localize("ARTISAN.RecipeCopyMissing");
+    const explanation = access.mode === "learned" ? game.i18n.localize("ARTISAN.RecipeLearnRequiredChat") : game.i18n.localize("ARTISAN.RecipeCopyRequiredChat");
     const content = `
             <div class="artisan-chat-card">
-                <h2>\u{1F4D6} Ricetta non posseduta</h2>
+                <h2>\u{1F4D6} ${this.escapeHtml(title)}</h2>
                 <p>
                     <strong>${this.escapeHtml(recipeItem.name ?? "Ricetta")}</strong><br>
                     Attore: ${this.escapeHtml(actor.name ?? "Attore")}
                 </p>
                 ${this.buildMessagesHtml("Avvisi ricetta", validation.warnings)}
-                <p><strong>Il PG deve avere una copia della ricetta nel proprio inventario per poterla usare.</strong></p>
-                <p>Trascina o importa la ricetta nell'inventario del PG, poi riprova il crafting.</p>
+                <p><strong>${this.escapeHtml(explanation)}</strong></p>
             </div>
         `;
     await ChatMessage.create({
@@ -6315,6 +6533,108 @@ var HarvestService = class _HarvestService {
   }
 };
 
+// src/services/configuration-audit-service.ts
+var ConfigurationAuditService = class {
+  async auditAll() {
+    const entries = [];
+    const craftingService = new CraftingService();
+    for (const recipeItem of new RecipeRepository().getRecipes()) {
+      const validation = await craftingService.buildValidationResult(recipeItem);
+      entries.push({
+        section: "recipes",
+        sectionLabel: game.i18n.localize("ARTISAN.Recipes"),
+        id: recipeItem.id ?? "",
+        name: recipeItem.name ?? game.i18n.localize("ARTISAN.Unknown"),
+        errors: [...validation.errors],
+        warnings: [...validation.warnings]
+      });
+    }
+    await this.auditProfiles(entries, "foraging", game.i18n.localize("ARTISAN.Foraging"), new ForagingService().getProfiles(), {
+      resourcesAllowed: ["Item"]
+    });
+    await this.auditProfiles(entries, "harvest", game.i18n.localize("ARTISAN.Harvest"), new HarvestService().getProfiles(), {
+      resourcesAllowed: ["Item", "Actor"],
+      validateRequiredTool: true
+    });
+    await this.auditProfiles(entries, "disassembly", game.i18n.localize("ARTISAN.Disassembly"), new DisassemblyService().getProfiles(), {
+      resourcesAllowed: ["Item", "Actor"],
+      sourceRequired: true
+    });
+    for (const entry of entries) {
+      entry.valid = entry.errors.length === 0;
+      entry.status = entry.errors.length > 0 ? "error" : entry.warnings.length > 0 ? "warning" : "valid";
+    }
+    const errorCount = entries.reduce((total, entry) => total + entry.errors.length, 0);
+    const warningCount = entries.reduce((total, entry) => total + entry.warnings.length, 0);
+    return {
+      entries,
+      total: entries.length,
+      validCount: entries.filter((entry) => entry.status === "valid").length,
+      errorEntryCount: entries.filter((entry) => entry.status === "error").length,
+      warningEntryCount: entries.filter((entry) => entry.status === "warning").length,
+      errorCount,
+      warningCount,
+      valid: errorCount === 0
+    };
+  }
+  async auditProfiles(target, section, sectionLabel, profiles, options = {}) {
+    const seenNames = /* @__PURE__ */ new Set();
+    for (const profile of profiles) {
+      const errors = [];
+      const warnings = [];
+      const cleanName = String(profile.name ?? "").trim();
+      const nameKey = cleanName.toLocaleLowerCase();
+      if (!cleanName) warnings.push(game.i18n.localize("ARTISAN.AuditNameMissing"));
+      if (nameKey && seenNames.has(nameKey)) warnings.push(game.i18n.localize("ARTISAN.AuditDuplicateName"));
+      if (nameKey) seenNames.add(nameKey);
+      if (!Array.isArray(profile.resources) || profile.resources.length === 0) {
+        errors.push(game.i18n.localize("ARTISAN.AuditNoResources"));
+      }
+      if (profile.toolRequirement === "required" && (!Array.isArray(profile.tools) || profile.tools.length === 0)) {
+        errors.push(game.i18n.localize("ARTISAN.RequiredToolsMissing"));
+      }
+      if (options.sourceRequired) {
+        const issue = await this.validateReference(profile.sourceUuid, ["Item"], game.i18n.localize("ARTISAN.DisassemblySource"));
+        if (issue) errors.push(issue);
+      }
+      for (const resource of Array.from(profile.resources ?? [])) {
+        const issue = await this.validateReference(resource.uuid, options.resourcesAllowed ?? ["Item"], game.i18n.localize("ARTISAN.Resources"));
+        if (issue) errors.push(issue);
+        if (options.validateRequiredTool && resource.requiredToolUuid) {
+          const toolIssue = await this.validateReference(resource.requiredToolUuid, ["Item"], game.i18n.localize("ARTISAN.RequiredTool"));
+          if (toolIssue) errors.push(toolIssue);
+        }
+      }
+      for (const tool of Array.from(profile.tools ?? [])) {
+        const issue = await this.validateReference(tool.uuid, ["Item"], game.i18n.localize("ARTISAN.Tools"));
+        if (issue) errors.push(issue);
+      }
+      target.push({
+        section,
+        sectionLabel,
+        id: String(profile.id ?? ""),
+        name: cleanName || game.i18n.localize("ARTISAN.Unknown"),
+        errors: Array.from(new Set(errors)),
+        warnings: Array.from(new Set(warnings))
+      });
+    }
+  }
+  async validateReference(uuid, allowedDocumentNames, label) {
+    const cleanUuid = String(uuid ?? "").trim();
+    if (!cleanUuid) return `${label}: ${game.i18n.localize("ARTISAN.AuditUuidEmpty")}`;
+    try {
+      const document2 = await fromUuid(cleanUuid);
+      if (!document2) return `${label}: ${game.i18n.localize("ARTISAN.AuditUuidMissing")} (${cleanUuid})`;
+      if (!allowedDocumentNames.includes(String(document2.documentName ?? ""))) {
+        return `${label}: ${game.i18n.localize("ARTISAN.AuditWrongDocumentType")} (${cleanUuid})`;
+      }
+      return "";
+    } catch (_error) {
+      return `${label}: ${game.i18n.localize("ARTISAN.AuditUuidUnreadable")} (${cleanUuid})`;
+    }
+  }
+};
+
 // src/services/item-service.ts
 var ItemService = class {
   async getOrCreateRecipeFolder() {
@@ -6496,6 +6816,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
   recipeFilterProfession = "all";
   recipeFilterCategory = "all";
   recipeFilterLevel = "all";
+  recipeFilterCraftable = "all";
   pendingScrollState = null;
   itemPickerChoicesCache = /* @__PURE__ */ new Map();
   static DEFAULT_OPTIONS = {
@@ -6558,8 +6879,17 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const harvestService = new HarvestService();
     const disassemblyService = new DisassemblyService();
     const professionService = new ProfessionService();
-    const allRecipes = recipeService.getExplorerRecipes();
     const selectedActor = canvas?.tokens?.controlled?.[0]?.actor ?? null;
+    const craftingService = new CraftingService();
+    const baseRecipes = recipeService.getExplorerRecipes();
+    const allRecipes = await Promise.all(baseRecipes.map(async (recipe) => {
+      const recipeItem = recipe?.id ? game.items.get(String(recipe.id)) : null;
+      if (!recipeItem) return { ...recipe, craftability: null };
+      return {
+        ...recipe,
+        craftability: await craftingService.getCraftabilityStatus(recipeItem, selectedActor)
+      };
+    }));
     const recipeCategories = this.getRecipeCategoryOptions(allRecipes);
     const recipes = this.getFilteredRecipes(allRecipes, professionService);
     if (this.selectedRecipeId && !recipes.some((recipe) => recipe.id === this.selectedRecipeId)) {
@@ -6667,7 +6997,10 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const selectedRecipeProfessionLevel = professionService.normalizeLevel(
       selectedRecipe?.professionLevel ?? selectedRecipeFlag?.professionLevel ?? selectedRecipeFlag?.requiredProfessionLevel ?? 0
     );
-    const selectedRecipeRequirement = selectedRecipe ? this.getRecipeCraftingRequirementView(selectedRecipe, professionService, selectedActor) : null;
+    const selectedRecipeExplorer = allRecipes.find((recipe) => String(recipe.id) === String(this.selectedRecipeId));
+    const selectedRecipeWithCraftability = selectedRecipe ? { ...selectedRecipe, craftability: selectedRecipeExplorer?.craftability ?? null } : null;
+    const selectedRecipeRequirement = selectedRecipeWithCraftability ? this.getRecipeCraftingRequirementView(selectedRecipeWithCraftability, professionService, selectedActor) : null;
+    const selectedRecipeAccess = selectedRecipeItem && selectedRecipe ? new RecipeKnowledgeService().getAccessStatus(selectedActor, selectedRecipeItem, selectedRecipe) : null;
     const selectedRecipeView = selectedRecipe ? {
       ...selectedRecipe,
       ingredientGroups: Array.from(selectedRecipe.ingredients.reduce((groups, ingredient) => {
@@ -6681,6 +7014,12 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         hasAlternatives: group.ingredients.length > 1
       })),
       ...selectedRecipeRequirement,
+      knowledgeModeLabel: selectedRecipeAccess?.modeLabel ?? "",
+      actorHasLearnedRecipe: Boolean(selectedRecipeAccess?.learned),
+      actorHasRecipeCopy: Boolean(selectedRecipeAccess?.hasCopy),
+      showLearnRecipeButton: Boolean(selectedActor && selectedRecipeAccess?.mode === "learned" && !selectedRecipeAccess.learned && selectedRecipeAccess.hasCopy && new RecipeKnowledgeService().canManageActor(selectedActor)),
+      showGrantRecipeButton: Boolean(game.user?.isGM && selectedActor && selectedRecipeAccess?.mode === "learned" && !selectedRecipeAccess.learned && !selectedRecipeAccess.hasCopy),
+      showForgetRecipeButton: Boolean(game.user?.isGM && selectedActor && selectedRecipeAccess?.learned),
       professionLevel: selectedRecipeProfessionLevel,
       craftingMultiplier: professionService.getCraftingMultiplier(
         selectedRecipeProfessionLevel
@@ -6746,7 +7085,8 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         search: this.recipeSearchText,
         profession: this.recipeFilterProfession,
         category: this.recipeFilterCategory,
-        level: this.recipeFilterLevel
+        level: this.recipeFilterLevel,
+        craftable: this.recipeFilterCraftable
       },
       recipeFilterProfessionOptions: this.getRecipeProfessionFilterOptions(professionService),
       recipeFilterCategoryOptions: recipeCategories,
@@ -6772,6 +7112,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       selectedDisassemblyActorProfession,
       selectedDisassemblyActorProfessionSummary,
       selectedActorName: selectedActor?.name ?? "",
+      isGM: Boolean(game.user?.isGM),
       selectedActorProfessions,
       selectedActorProfessionSummary: this.getActorProfessionSummary(selectedActorProfessions)
     };
@@ -7155,6 +7496,24 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       if (resetRecipeFiltersButton) {
         event.preventDefault();
         this.onResetRecipeFiltersClicked();
+        return;
+      }
+      const globalAuditButton = target.closest("[data-artisan-run-global-audit]");
+      if (globalAuditButton) {
+        event.preventDefault();
+        void this.onRunGlobalAuditClicked();
+        return;
+      }
+      const learnRecipeButton = target.closest("[data-artisan-learn-recipe]");
+      if (learnRecipeButton) {
+        event.preventDefault();
+        void this.onLearnRecipeClicked(learnRecipeButton);
+        return;
+      }
+      const forgetRecipeButton = target.closest("[data-artisan-forget-recipe]");
+      if (forgetRecipeButton) {
+        event.preventDefault();
+        void this.onForgetRecipeClicked(forgetRecipeButton);
         return;
       }
       const rollCraftingButton = target.closest(
@@ -8184,9 +8543,10 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const actorLevel = actorProfession?.level ?? 0;
     const hasActor = Boolean(actor);
     const recipeItem = recipe?.id ? game.items.get(String(recipe.id)) : null;
-    const hasRecipeCopy = Boolean(actor && recipeItem && this.actorHasRecipeCopy(actor, recipeItem));
+    const access = recipeItem ? new RecipeKnowledgeService().getAccessStatus(actor, recipeItem, recipe) : null;
     const requirementMet = requiredLevel <= 0 || actorLevel >= requiredLevel;
-    const canCraft = hasActor && hasRecipeCopy && requirementMet;
+    const craftability = recipe?.craftability ?? null;
+    const canCraft = craftability ? Boolean(craftability.craftable) : Boolean(hasActor && access?.allowed && requirementMet);
     if (!hasActor) {
       return {
         canCraft: false,
@@ -8200,17 +8560,19 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         actorProfessionLevel: 0
       };
     }
-    if (!hasRecipeCopy) {
+    if (!access?.allowed) {
+      const learnedMode = access?.mode === "learned";
       return {
         canCraft: false,
         recipeLocked: true,
         recipeStatusClass: "is-locked",
-        recipeStatusIcon: "fa-solid fa-book",
-        recipeStatusLabel: game.i18n.localize("ARTISAN.RecipeCopyMissing"),
-        recipeStatusTitle: `${actor?.name ?? "PG"}: ${game.i18n.localize("ARTISAN.RecipeCopyRequiredTitle")}`,
+        recipeStatusIcon: learnedMode ? "fa-solid fa-graduation-cap" : "fa-solid fa-book",
+        recipeStatusLabel: learnedMode ? game.i18n.localize("ARTISAN.RecipeNotLearned") : game.i18n.localize("ARTISAN.RecipeCopyMissing"),
+        recipeStatusTitle: `${actor?.name ?? "PG"}: ${learnedMode ? game.i18n.localize("ARTISAN.RecipeLearnRequiredTitle") : game.i18n.localize("ARTISAN.RecipeCopyRequiredTitle")}`,
         requiredProfessionLabel: professionLabel,
         requiredProfessionLevel: requiredLevel,
-        actorProfessionLevel: actorLevel
+        actorProfessionLevel: actorLevel,
+        craftabilityReasons: craftability?.reasons ?? [access?.reason].filter(Boolean)
       };
     }
     if (!requirementMet) {
@@ -8223,7 +8585,22 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         recipeStatusTitle: `${actor.name}: ${professionLabel} ${game.i18n.localize("ARTISAN.Level").toLowerCase()} ${actorLevel}. ${game.i18n.localize("ARTISAN.RequiredLevel")}: ${requiredLevel}.`,
         requiredProfessionLabel: professionLabel,
         requiredProfessionLevel: requiredLevel,
-        actorProfessionLevel: actorLevel
+        actorProfessionLevel: actorLevel,
+        craftabilityReasons: craftability?.reasons ?? []
+      };
+    }
+    if (craftability && !craftability.craftable) {
+      return {
+        canCraft: false,
+        recipeLocked: true,
+        recipeStatusClass: "is-unavailable",
+        recipeStatusIcon: "fa-solid fa-box-open",
+        recipeStatusLabel: game.i18n.localize("ARTISAN.MaterialsMissing"),
+        recipeStatusTitle: craftability.reasons.join(" · ") || game.i18n.localize("ARTISAN.MaterialsMissing"),
+        requiredProfessionLabel: professionLabel,
+        requiredProfessionLevel: requiredLevel,
+        actorProfessionLevel: actorLevel,
+        craftabilityReasons: craftability.reasons
       };
     }
     return {
@@ -8231,11 +8608,12 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       recipeLocked: false,
       recipeStatusClass: "is-available",
       recipeStatusIcon: "fa-solid fa-circle-check",
-      recipeStatusLabel: requiredLevel > 0 ? `${professionLabel} ${actorLevel}/${requiredLevel}` : game.i18n.localize("ARTISAN.Available"),
+      recipeStatusLabel: craftability?.maxLots > 0 ? `${game.i18n.localize("ARTISAN.CraftableNow")} ×${craftability.maxLots}` : requiredLevel > 0 ? `${professionLabel} ${actorLevel}/${requiredLevel}` : game.i18n.localize("ARTISAN.Available"),
       recipeStatusTitle: requiredLevel > 0 ? `${actor.name}: ${game.i18n.localize("ARTISAN.RequirementMet")} (${professionLabel} ${game.i18n.localize("ARTISAN.Level").toLowerCase()} ${actorLevel}/${requiredLevel}).` : `${actor.name}: ${game.i18n.localize("ARTISAN.RecipeWithoutProfessionRequirement")}.`,
       requiredProfessionLabel: professionLabel,
       requiredProfessionLevel: requiredLevel,
-      actorProfessionLevel: actorLevel
+      actorProfessionLevel: actorLevel,
+      craftabilityReasons: []
     };
   }
   actorHasRecipeCopy(actor, recipeItem) {
@@ -8284,13 +8662,15 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const profession = this.recipeFilterProfession;
     const category = this.recipeFilterCategory;
     const level = this.recipeFilterLevel;
+    const craftable = this.recipeFilterCraftable;
     return recipes.filter((recipe) => {
       const data = this.getRecipeFilterData(recipe, professionService);
       const matchesSearch = !search || data.name.toLowerCase().includes(search) || data.category.toLowerCase().includes(search) || data.subcategory.toLowerCase().includes(search) || data.profession.toLowerCase().includes(search);
       const matchesProfession = profession === "all" || data.profession === profession;
       const matchesCategory = category === "all" || data.category === category;
       const matchesLevel = level === "all" || data.professionLevel === Number(level);
-      return matchesSearch && matchesProfession && matchesCategory && matchesLevel;
+      const matchesCraftable = craftable === "all" || (craftable === "yes" && recipe.craftability?.craftable === true) || (craftable === "no" && recipe.craftability?.craftable === false);
+      return matchesSearch && matchesProfession && matchesCategory && matchesLevel && matchesCraftable;
     });
   }
   buildRecipeExplorerTree(recipes, professionService, selectedActor) {
@@ -8499,6 +8879,9 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     if (filter === "level") {
       this.recipeFilterLevel = target.value || "all";
     }
+    if (filter === "craftable") {
+      this.recipeFilterCraftable = target.value || "all";
+    }
     this.renderPreservingUiState();
   }
   onResetRecipeFiltersClicked() {
@@ -8506,7 +8889,126 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     this.recipeFilterProfession = "all";
     this.recipeFilterCategory = "all";
     this.recipeFilterLevel = "all";
+    this.recipeFilterCraftable = "all";
     this.renderPreservingUiState();
+  }
+  async onRunGlobalAuditClicked() {
+    if (!game.user?.isGM) {
+      ui.notifications.warn(game.i18n.localize("ARTISAN.AuditGmOnly"));
+      return;
+    }
+    ui.notifications.info(game.i18n.localize("ARTISAN.AuditRunning"));
+    const result = await new ConfigurationAuditService().auditAll();
+    this.openGlobalAuditOverlay(result);
+  }
+  openGlobalAuditOverlay(result) {
+    const root = this.getRootElement();
+    if (!root) return;
+    root.querySelector("[data-artisan-audit-overlay]")?.remove();
+    const escape = (value) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+    const entries = [...result.entries].sort((a, b) => {
+      const rank = { error: 0, warning: 1, valid: 2 };
+      return rank[a.status] - rank[b.status] || a.sectionLabel.localeCompare(b.sectionLabel) || a.name.localeCompare(b.name);
+    });
+    const entryHtml = entries.length ? entries.map((entry) => {
+      const icon = entry.status === "error" ? "fa-circle-xmark" : entry.status === "warning" ? "fa-triangle-exclamation" : "fa-circle-check";
+      const messages = [...entry.errors.map((message) => ({ kind: "error", message })), ...entry.warnings.map((message) => ({ kind: "warning", message }))];
+      const messageHtml = messages.length ? `<ul>${messages.map((item) => `<li class="is-${item.kind}">${escape(item.message)}</li>`).join("")}</ul>` : `<p>${escape(game.i18n.localize("ARTISAN.AuditEntryValid"))}</p>`;
+      return `<article class="artisan-audit-entry is-${entry.status}"><header><i class="fa-solid ${icon}"></i><div><strong>${escape(entry.name)}</strong><small>${escape(entry.sectionLabel)}</small></div></header>${messageHtml}</article>`;
+    }).join("") : `<p class="artisan-audit-empty">${escape(game.i18n.localize("ARTISAN.AuditNoConfigurations"))}</p>`;
+    const overlay = document.createElement("div");
+    overlay.className = "artisan-audit-overlay";
+    overlay.setAttribute("data-artisan-audit-overlay", "true");
+    overlay.innerHTML = `
+      <section class="artisan-audit-dialog" role="dialog" aria-modal="true">
+        <header class="artisan-audit-dialog__header">
+          <div><h2><i class="fa-solid fa-stethoscope"></i> ${escape(game.i18n.localize("ARTISAN.GlobalAudit"))}</h2><p>${escape(game.i18n.localize("ARTISAN.GlobalAuditHelp"))}</p></div>
+          <button type="button" class="artisan-icon-button" data-artisan-close-audit title="${escape(game.i18n.localize("ARTISAN.Close"))}"><i class="fa-solid fa-xmark"></i></button>
+        </header>
+        <div class="artisan-audit-summary">
+          <span class="is-valid"><strong>${result.validCount}</strong>${escape(game.i18n.localize("ARTISAN.AuditValid"))}</span>
+          <span class="is-warning"><strong>${result.warningEntryCount}</strong>${escape(game.i18n.localize("ARTISAN.AuditWarnings"))}</span>
+          <span class="is-error"><strong>${result.errorEntryCount}</strong>${escape(game.i18n.localize("ARTISAN.AuditErrors"))}</span>
+          <span><strong>${result.total}</strong>${escape(game.i18n.localize("ARTISAN.AuditTotal"))}</span>
+        </div>
+        <div class="artisan-audit-list">${entryHtml}</div>
+        <footer><button type="button" class="artisan-button" data-artisan-close-audit>${escape(game.i18n.localize("ARTISAN.Close"))}</button></footer>
+      </section>`;
+    const close = () => overlay.remove();
+    overlay.addEventListener("click", (event) => {
+      const target = event.target;
+      if (target === overlay || target instanceof Element && target.closest("[data-artisan-close-audit]")) close();
+    });
+    overlay.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") close();
+    });
+    root.append(overlay);
+    overlay.querySelector("[data-artisan-close-audit]")?.focus();
+  }
+  async onLearnRecipeClicked(target) {
+    const actor = canvas?.tokens?.controlled?.[0]?.actor ?? null;
+    const recipeId = target.dataset.recipeId ?? this.selectedRecipeId;
+    const recipeItem = recipeId ? game.items.get(recipeId) : null;
+    if (!actor || !recipeItem) {
+      ui.notifications.warn(game.i18n.localize("ARTISAN.SelectActor"));
+      return;
+    }
+    const grant = target.dataset.grant === "true";
+    const recipe = RecipeDocument.getData(recipeItem);
+    const confirmed = await this.confirmKnowledgeAction(
+      grant ? game.i18n.localize("ARTISAN.GrantRecipe") : game.i18n.localize("ARTISAN.LearnRecipe"),
+      grant ? game.i18n.format("ARTISAN.GrantRecipeConfirm", { actor: actor.name, recipe: recipeItem.name }) : game.i18n.format("ARTISAN.LearnRecipeConfirm", { actor: actor.name, recipe: recipeItem.name })
+    );
+    if (!confirmed) return;
+    try {
+      const outcome = await new RecipeKnowledgeService().learnRecipe(actor, recipeItem, {
+        grant,
+        consumeCopy: !grant && recipe.consumeRecipeOnLearn
+      });
+      if (outcome.alreadyLearned) {
+        ui.notifications.info(game.i18n.localize("ARTISAN.RecipeAlreadyLearned"));
+      } else {
+        ui.notifications.info(game.i18n.format("ARTISAN.RecipeLearnedSuccess", { actor: actor.name, recipe: recipeItem.name }));
+      }
+      this.renderPreservingUiState();
+    } catch (error) {
+      ui.notifications.error(error?.message ?? game.i18n.localize("ARTISAN.RecipeLearnFailed"));
+    }
+  }
+  async onForgetRecipeClicked(target) {
+    const actor = canvas?.tokens?.controlled?.[0]?.actor ?? null;
+    const recipeId = target.dataset.recipeId ?? this.selectedRecipeId;
+    const recipeItem = recipeId ? game.items.get(recipeId) : null;
+    if (!actor || !recipeItem) {
+      ui.notifications.warn(game.i18n.localize("ARTISAN.SelectActor"));
+      return;
+    }
+    const confirmed = await this.confirmKnowledgeAction(
+      game.i18n.localize("ARTISAN.ForgetRecipe"),
+      game.i18n.format("ARTISAN.ForgetRecipeConfirm", { actor: actor.name, recipe: recipeItem.name })
+    );
+    if (!confirmed) return;
+    try {
+      await new RecipeKnowledgeService().forgetRecipe(actor, recipeItem);
+      ui.notifications.info(game.i18n.format("ARTISAN.RecipeForgottenSuccess", { actor: actor.name, recipe: recipeItem.name }));
+      this.renderPreservingUiState();
+    } catch (error) {
+      ui.notifications.error(error?.message ?? game.i18n.localize("ARTISAN.RecipeForgetFailed"));
+    }
+  }
+  async confirmKnowledgeAction(title, content) {
+    return new Promise((resolve) => {
+      new Dialog({
+        title,
+        content: `<p>${String(content).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")}</p>`,
+        buttons: {
+          cancel: { label: game.i18n.localize("ARTISAN.Cancel"), callback: () => resolve(false) },
+          confirm: { label: game.i18n.localize("ARTISAN.Confirm"), callback: () => resolve(true) }
+        },
+        default: "confirm",
+        close: () => resolve(false)
+      }).render(true);
+    });
   }
   async onRecipeFieldChanged(target) {
     const recipeId = target.dataset.recipeId;
@@ -8646,14 +9148,18 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const recipes = game.items.filter((item) => item.getFlag("artisan", "type") === "recipe").map((item) => this.toRecipeExportData(item));
     const actorProfessions = game.actors.map((actor) => {
       const professions = actor.getFlag("artisan", "professions");
-      if (!professions || typeof professions !== "object" || Array.isArray(professions)) {
+      const learnedRecipes = actor.getFlag("artisan", "learnedRecipes");
+      const hasProfessions = professions && typeof professions === "object" && !Array.isArray(professions);
+      const hasLearnedRecipes = Array.isArray(learnedRecipes) && learnedRecipes.length > 0;
+      if (!hasProfessions && !hasLearnedRecipes) {
         return null;
       }
       return {
         id: actor.id,
         uuid: actor.uuid,
         name: actor.name,
-        professions: foundry.utils.deepClone(professions)
+        professions: hasProfessions ? foundry.utils.deepClone(professions) : {},
+        learnedRecipes: hasLearnedRecipes ? foundry.utils.deepClone(learnedRecipes) : []
       };
     }).filter((entry) => entry !== null);
     const payload = {
@@ -8683,7 +9189,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     void this.addActivityLogEntry(
       "backup",
       "Backup Artisan esportato",
-      `Backup completo con ${recipes.length} ricette, ${foragingService.getProfiles().length} liste di raccolta, ${harvestService.getProfiles().length} liste di caccia, ${disassemblyService.getProfiles().length} liste Dissassemblare e ${actorProfessions.length} PG con professioni.`
+      `Backup completo con ${recipes.length} ricette, ${foragingService.getProfiles().length} liste di raccolta, ${harvestService.getProfiles().length} liste di caccia, ${disassemblyService.getProfiles().length} liste Dissassemblare e ${actorProfessions.length} PG con dati Artisan.`
     );
   }
   onImportBackupClicked() {
@@ -8751,7 +9257,10 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     let skipped = 0;
     for (const entry of entries) {
       const professions = entry?.professions;
-      if (!professions || typeof professions !== "object" || Array.isArray(professions)) {
+      const learnedRecipes = entry?.learnedRecipes;
+      const hasProfessions = professions && typeof professions === "object" && !Array.isArray(professions);
+      const hasLearnedRecipes = Array.isArray(learnedRecipes);
+      if (!hasProfessions && !hasLearnedRecipes) {
         skipped += 1;
         continue;
       }
@@ -8760,11 +9269,12 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
         skipped += 1;
         continue;
       }
-      await actor.setFlag(
-        "artisan",
-        "professions",
-        foundry.utils.deepClone(professions)
-      );
+      if (hasProfessions) {
+        await actor.setFlag("artisan", "professions", foundry.utils.deepClone(professions));
+      }
+      if (hasLearnedRecipes) {
+        await actor.setFlag("artisan", "learnedRecipes", foundry.utils.deepClone(learnedRecipes));
+      }
       imported += 1;
     }
     return { imported, skipped };
@@ -8852,6 +9362,8 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       currencyCost: Math.max(0, Number(recipe.currencyCost ?? recipe.goldCost ?? 0)),
       currencyDenomination: this.normalizeRecipeCurrencyDenomination(recipe.currencyDenomination ?? recipe.currency ?? "gp"),
       consumeCurrencyOnFailure: Boolean(recipe.consumeCurrencyOnFailure ?? false),
+      knowledgeMode: RecipeDocument.normalizeKnowledgeMode(recipe.knowledgeMode ?? "copy"),
+      consumeRecipeOnLearn: Boolean(recipe.consumeRecipeOnLearn ?? true),
       toolRequirement: String(recipe.toolRequirement ?? "optional") === "required" ? "required" : "optional",
       toolCriticalDamage: Boolean(recipe.toolCriticalDamage ?? false),
       qualityMode: this.normalizeRecipeQualityMode(recipe.qualityMode ?? "margin"),
@@ -8924,7 +9436,8 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     return value.filter((entry) => entry && typeof entry.uuid === "string" && entry.uuid.trim().length > 0).map((entry) => ({
       uuid: String(entry.uuid).trim(),
-      quantity: Math.max(1, Number(entry.quantity ?? 1))
+      quantity: Math.max(1, Number(entry.quantity ?? 1)),
+      ...(entry.ingredientGroup !== void 0 ? { ingredientGroup: Math.max(1, Math.floor(Number(entry.ingredientGroup ?? 1))) } : {})
     }));
   }
   async getOrCreateImportedRecipeFolder() {
@@ -9070,6 +9583,8 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
             currencyCost: Math.max(0, Number(data.currencyCost ?? data.goldCost ?? 0)),
             currencyDenomination: this.normalizeRecipeCurrencyDenomination(data.currencyDenomination ?? data.currency ?? "gp"),
             consumeCurrencyOnFailure: Boolean(data.consumeCurrencyOnFailure ?? false),
+            knowledgeMode: RecipeDocument.normalizeKnowledgeMode(data.knowledgeMode ?? "copy"),
+            consumeRecipeOnLearn: Boolean(data.consumeRecipeOnLearn ?? true),
             toolRequirement: String(data.toolRequirement ?? "optional") === "required" ? "required" : "optional",
             toolCriticalDamage: Boolean(data.toolCriticalDamage ?? false),
             qualityMode: this.normalizeRecipeQualityMode(data.qualityMode ?? "margin"),
@@ -9100,7 +9615,8 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     return value.filter((entry) => entry && typeof entry.uuid === "string").map((entry) => ({
       uuid: entry.uuid,
-      quantity: Math.max(1, Number(entry.quantity ?? 1))
+      quantity: Math.max(1, Number(entry.quantity ?? 1)),
+      ...(entry.ingredientGroup !== void 0 ? { ingredientGroup: Math.max(1, Math.floor(Number(entry.ingredientGroup ?? 1))) } : {})
     }));
   }
   toSafeFilename(value) {

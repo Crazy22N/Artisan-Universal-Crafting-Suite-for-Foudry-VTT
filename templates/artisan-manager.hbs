@@ -237,6 +237,12 @@
                 <h3>{{localize 'ARTISAN.Recipes'}}</h3>
 
                 <div class="artisan-toolbar-actions">
+                    {{#if isGM}}
+                    <button type="button" class="artisan-button artisan-button--audit" data-artisan-run-global-audit>
+                        <i class="fa-solid fa-stethoscope"></i>
+                        {{localize 'ARTISAN.GlobalAudit'}}
+                    </button>
+                    {{/if}}
                     <button type="button" class="artisan-button" data-artisan-new-recipe>
                         <i class="fa-solid fa-plus"></i>
                         {{localize 'ARTISAN.NewRecipe'}}
@@ -326,6 +332,15 @@
                         </select>
                     </label>
 
+                    <label>
+                        <span>{{localize 'ARTISAN.Craftability'}}</span>
+                        <select data-artisan-recipe-filter data-filter="craftable">
+                            <option value="all" {{#if (eq recipeFilters.craftable "all")}}selected{{/if}}>{{localize 'ARTISAN.AllF'}}</option>
+                            <option value="yes" {{#if (eq recipeFilters.craftable "yes")}}selected{{/if}}>{{localize 'ARTISAN.CraftableNow'}}</option>
+                            <option value="no" {{#if (eq recipeFilters.craftable "no")}}selected{{/if}}>{{localize 'ARTISAN.NotCraftableNow'}}</option>
+                        </select>
+                    </label>
+
                     <button type="button" class="artisan-small-button" data-artisan-reset-recipe-filters>
                         <i class="fa-solid fa-filter-circle-xmark"></i>
                         {{localize 'ARTISAN.ClearFilters'}}
@@ -410,11 +425,29 @@
                         <div>
                             <strong>{{localize 'ARTISAN.SelectedActorAvailability'}}</strong>
                             <p>{{selectedRecipe.recipeStatusTitle}}</p>
+                            <small>{{localize 'ARTISAN.RecipeAccessMode'}}: {{selectedRecipe.knowledgeModeLabel}}</small>
                         </div>
-                        <span class="artisan-recipe-status-badge {{selectedRecipe.recipeStatusClass}}">
-                            <i class="{{selectedRecipe.recipeStatusIcon}}"></i>
-                            {{selectedRecipe.recipeStatusLabel}}
-                        </span>
+                        <div class="artisan-recipe-requirement-card__actions">
+                            <span class="artisan-recipe-status-badge {{selectedRecipe.recipeStatusClass}}">
+                                <i class="{{selectedRecipe.recipeStatusIcon}}"></i>
+                                {{selectedRecipe.recipeStatusLabel}}
+                            </span>
+                            {{#if selectedRecipe.showLearnRecipeButton}}
+                                <button type="button" class="artisan-small-button" data-artisan-learn-recipe data-recipe-id="{{selectedRecipe.id}}">
+                                    <i class="fa-solid fa-graduation-cap"></i>{{localize 'ARTISAN.LearnRecipe'}}
+                                </button>
+                            {{/if}}
+                            {{#if selectedRecipe.showGrantRecipeButton}}
+                                <button type="button" class="artisan-small-button" data-artisan-learn-recipe data-grant="true" data-recipe-id="{{selectedRecipe.id}}">
+                                    <i class="fa-solid fa-user-check"></i>{{localize 'ARTISAN.GrantRecipe'}}
+                                </button>
+                            {{/if}}
+                            {{#if selectedRecipe.showForgetRecipeButton}}
+                                <button type="button" class="artisan-small-button artisan-small-button--danger" data-artisan-forget-recipe data-recipe-id="{{selectedRecipe.id}}">
+                                    <i class="fa-solid fa-user-xmark"></i>{{localize 'ARTISAN.ForgetRecipe'}}
+                                </button>
+                            {{/if}}
+                        </div>
                     </section>
 
                     <div class="artisan-recipe-workflow">
@@ -496,6 +529,27 @@
                             >
                             <small>{{localize 'ARTISAN.RecipeRequirementHelp'}}</small>
                         </div>
+
+                        <div class="artisan-inspector__field">
+                            <label>{{localize 'ARTISAN.RecipeAccessMode'}}</label>
+                            <select data-artisan-field="knowledgeMode" data-recipe-id="{{selectedRecipe.id}}">
+                                <option value="copy" {{#if (eq selectedRecipe.knowledgeMode "copy")}}selected{{/if}}>{{localize 'ARTISAN.KnowledgeModeCopy'}}</option>
+                                <option value="learned" {{#if (eq selectedRecipe.knowledgeMode "learned")}}selected{{/if}}>{{localize 'ARTISAN.KnowledgeModeLearned'}}</option>
+                                <option value="public" {{#if (eq selectedRecipe.knowledgeMode "public")}}selected{{/if}}>{{localize 'ARTISAN.KnowledgeModePublic'}}</option>
+                            </select>
+                            <small>{{localize 'ARTISAN.RecipeAccessModeHelp'}}</small>
+                        </div>
+
+                        {{#if (eq selectedRecipe.knowledgeMode "learned")}}
+                            <div class="artisan-inspector__field artisan-toggle-field">
+                                <label>{{localize 'ARTISAN.ConsumeRecipeOnLearn'}}</label>
+                                <label class="artisan-checkbox-line">
+                                    <input type="checkbox" data-artisan-field="consumeRecipeOnLearn" data-recipe-id="{{selectedRecipe.id}}" {{#if selectedRecipe.consumeRecipeOnLearn}}checked{{/if}}>
+                                    <span>{{localize 'ARTISAN.ConsumeRecipeOnLearnCheckbox'}}</span>
+                                </label>
+                                <small>{{localize 'ARTISAN.ConsumeRecipeOnLearnHelp'}}</small>
+                            </div>
+                        {{/if}}
 
                         <div class="artisan-inspector__field">
                             <label>{{localize 'ARTISAN.TimeHours'}}</label>
