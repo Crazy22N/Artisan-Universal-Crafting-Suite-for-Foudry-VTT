@@ -582,6 +582,9 @@
   "ARTISAN.RecipeForgetPermissionDenied": "Solo il GM può revocare una ricetta appresa.",
   "ARTISAN.RecipeLearnFailed": "Impossibile apprendere la ricetta.",
   "ARTISAN.RecipeForgetFailed": "Impossibile revocare la ricetta.",
+  "ARTISAN.ActiveCharacter": "Personaggio attivo",
+  "ARTISAN.UseSelectedToken": "Automatico — usa il token selezionato",
+  "ARTISAN.NoActiveCharacter": "Nessun personaggio selezionato",
   "ARTISAN.DisassemblySource": "Sorgente Disassemblaggio",
   "ARTISAN.Confirm": "Conferma"
 }

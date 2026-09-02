@@ -984,7 +984,7 @@ var CraftingService = class {
     }
     const actor = this.getSelectedActor();
     if (!actor) {
-      ui.notifications.warn("Seleziona un token con attore prima di eseguire il crafting.");
+      ui.notifications.warn("Seleziona un personaggio in Artisan oppure un token sulla scena prima di eseguire il crafting.");
       return;
     }
     const validation = await this.buildValidationResult(recipeItem);
@@ -1294,11 +1294,7 @@ var CraftingService = class {
     }
   }
   getSelectedActor() {
-    const controlled = canvas?.tokens?.controlled ?? [];
-    if (controlled.length !== 1) {
-      return null;
-    }
-    return controlled[0]?.actor ?? null;
+    return Artisan.getActiveActor();
   }
   getCraftingProfessionRequirement(actor, recipeItem, recipe) {
     const professionService = new ProfessionService();
@@ -3248,7 +3244,7 @@ var DisassemblyService = class _DisassemblyService {
     }
     const actor = this.getSelectedActor();
     if (!actor) {
-      ui.notifications.warn("Seleziona un token con attore prima di usare Dissassemblare.");
+      ui.notifications.warn("Seleziona un personaggio in Artisan oppure un token sulla scena prima di usare Dissassemblare.");
       return;
     }
     if (!profile.sourceUuid) {
@@ -3604,8 +3600,7 @@ var DisassemblyService = class _DisassemblyService {
     }) ?? null;
   }
   getSelectedActor() {
-    const token = canvas.tokens?.controlled?.[0];
-    return token?.actor ?? null;
+    return Artisan.getActiveActor();
   }
   getSkillModifier(actor, skill) {
     const key = this.resolveSkillKey(skill);
@@ -4329,7 +4324,7 @@ var ForagingService = class _ForagingService {
     }
     const actor = this.getSelectedActor();
     if (!actor) {
-      ui.notifications.warn("Seleziona un token con attore prima di usare Raccolta.");
+      ui.notifications.warn("Seleziona un personaggio in Artisan oppure un token sulla scena prima di usare Raccolta.");
       return;
     }
     if (profile.resources.length === 0) {
@@ -4841,8 +4836,7 @@ var ForagingService = class _ForagingService {
     }) ?? null;
   }
   getSelectedActor() {
-    const token = canvas.tokens?.controlled?.[0];
-    return token?.actor ?? null;
+    return Artisan.getActiveActor();
   }
   getSkillModifier(actor, skill) {
     const key = this.resolveSkillKey(skill);
@@ -5467,7 +5461,7 @@ var HarvestService = class _HarvestService {
     }
     const actor = this.getSelectedActor();
     if (!actor) {
-      ui.notifications.warn("Seleziona un token con attore prima di usare Caccia.");
+      ui.notifications.warn("Seleziona un personaggio in Artisan oppure un token sulla scena prima di usare Caccia.");
       return;
     }
     if (profile.resources.length === 0) {
@@ -6098,8 +6092,7 @@ var HarvestService = class _HarvestService {
     }) ?? null;
   }
   getSelectedActor() {
-    const token = canvas.tokens?.controlled?.[0];
-    return token?.actor ?? null;
+    return Artisan.getActiveActor();
   }
   getSkillModifier(actor, skill) {
     const key = this.resolveSkillKey(skill);
@@ -6802,6 +6795,7 @@ var RecipeService = class {
 // src/applications/artisan-manager.ts
 var { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
+  selectedActorId = null;
   selectedRecipeId = null;
   selectedSectionId = "recipes";
   selectedForagingProfileId = null;
@@ -6871,13 +6865,32 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     this.renderPreservingUiState();
   }
+  getActorSelectorOptions() {
+    const actors = Array.from(game.actors ?? []);
+    const playerCharacters = actors.filter((actor) => actor.type === "character" || actor.hasPlayerOwner);
+    const candidates = playerCharacters.length > 0 ? playerCharacters : actors;
+    return candidates.sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? ""), game.i18n.lang ?? void 0, { sensitivity: "base" })).map((actor) => ({
+      id: String(actor.id ?? ""),
+      name: String(actor.name ?? game.i18n.localize("ARTISAN.Unknown")),
+      img: actor.img ?? "icons/svg/mystery-man.svg",
+      selected: String(actor.id ?? "") === String(this.selectedActorId ?? "")
+    }));
+  }
+  onActorSelectorChanged(target) {
+    this.selectedActorId = String(target.value ?? "").trim() || null;
+    this.renderPreservingUiState();
+  }
   async _prepareContext(_options) {
     const recipeService = new RecipeService();
     const foragingService = new ForagingService();
     const harvestService = new HarvestService();
     const disassemblyService = new DisassemblyService();
     const professionService = new ProfessionService();
-    const selectedActor = canvas?.tokens?.controlled?.[0]?.actor ?? null;
+    if (this.selectedActorId && !game.actors.get(this.selectedActorId)) {
+      this.selectedActorId = null;
+    }
+    const actorSelectorOptions = this.getActorSelectorOptions();
+    const selectedActor = Artisan.getActiveActor();
     const craftingService = new CraftingService();
     const baseRecipes = recipeService.getExplorerRecipes();
     const allRecipes = await Promise.all(baseRecipes.map(async (recipe) => {
@@ -7056,6 +7069,9 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     return {
       title: "Artisan",
       subtitle: game.i18n.localize("ARTISAN.Subtitle"),
+      actorSelectorOptions,
+      selectedActorId: this.selectedActorId ?? "",
+      usingTokenActor: !this.selectedActorId,
       explorer: explorerData,
       selectedRecipe: selectedRecipeView,
       selectedSectionId: this.selectedSectionId,
@@ -7284,6 +7300,10 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     element.addEventListener("change", (event) => {
       const target = event.target;
       if (!(target instanceof HTMLInputElement) && !(target instanceof HTMLSelectElement)) {
+        return;
+      }
+      if (target.matches("[data-artisan-actor-selector]")) {
+        this.onActorSelectorChanged(target);
         return;
       }
       if (target.matches("[data-artisan-recipe-filter]")) {
@@ -8245,9 +8265,9 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     };
   }
   async onProfessionXpActionClicked(target) {
-    const actor = canvas?.tokens?.controlled?.[0]?.actor ?? null;
+    const actor = Artisan.getActiveActor();
     if (!actor) {
-      ui.notifications.warn("Seleziona un token con attore per modificare le professioni del PG.");
+      ui.notifications.warn("Seleziona un personaggio in Artisan oppure un token sulla scena per modificare le professioni del PG.");
       return;
     }
     const professionId = target.dataset.professionId;
@@ -9545,7 +9565,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const craftingService = new CraftingService();
     await craftingService.rollCrafting(recipeId);
     const item = game.items.get(recipeId);
-    const actor = canvas?.tokens?.controlled?.[0]?.actor ?? null;
+    const actor = Artisan.getActiveActor();
     void this.addActivityLogEntry(
       "crafting",
       "Crafting eseguito",
@@ -9714,10 +9734,10 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     this.renderPreservingUiState();
   }
   async onActorProfessionFieldChanged(target) {
-    const actor = canvas?.tokens?.controlled?.[0]?.actor ?? null;
+    const actor = Artisan.getActiveActor();
     if (!actor) {
       ui.notifications.warn(
-        "Seleziona un token con attore per modificare le professioni del PG."
+        "Seleziona un personaggio in Artisan oppure un token sulla scena per modificare le professioni del PG."
       );
       return;
     }
@@ -9812,10 +9832,10 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       ui.notifications.warn("Lista di raccolta non trovata.");
       return;
     }
-    const actor = canvas?.tokens?.controlled?.[0]?.actor ?? null;
+    const actor = Artisan.getActiveActor();
     if (!actor) {
       ui.notifications.warn(
-        "Seleziona un token con attore prima di salvare la professione sul PG."
+        "Seleziona un personaggio in Artisan oppure un token sulla scena prima di salvare la professione sul PG."
       );
       return;
     }
@@ -10035,7 +10055,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     const service = new ForagingService();
     const profile = service.getProfile(profileId);
-    const actor = canvas?.tokens?.controlled?.[0]?.actor ?? null;
+    const actor = Artisan.getActiveActor();
     const root = this.getRootElement();
     const hoursInput = root?.querySelector(`[data-artisan-foraging-attempt-hours][data-profile-id="${profileId}"]`);
     const requestedHours = hoursInput ? Number(hoursInput.value) : Number(profile?.time ?? 1);
@@ -10390,7 +10410,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     const service = new HarvestService();
     const profile = service.getProfile(profileId);
-    const actor = canvas?.tokens?.controlled?.[0]?.actor ?? null;
+    const actor = Artisan.getActiveActor();
     await service.startHarvest(profileId);
     void this.addActivityLogEntry(
       "harvest",
@@ -10654,7 +10674,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     const service = new DisassemblyService();
     const profile = service.getProfile(profileId);
-    const actor = canvas?.tokens?.controlled?.[0]?.actor ?? null;
+    const actor = Artisan.getActiveActor();
     await service.startDisassembly(profileId);
     void this.addActivityLogEntry(
       "disassembly",
@@ -10766,6 +10786,15 @@ var Artisan = class _Artisan {
       this.manager = new ArtisanManager();
     }
     this.manager.openSection(sectionId);
+  }
+  static getActiveActor() {
+    const selectedActorId = String(this.manager?.selectedActorId ?? "").trim();
+    if (selectedActorId) {
+      const selectedActor = game.actors.get(selectedActorId);
+      if (selectedActor) return selectedActor;
+    }
+    const controlled = canvas?.tokens?.controlled ?? [];
+    return controlled.length === 1 ? controlled[0]?.actor ?? null : null;
   }
   static openHelpDialog() {
     const title = _Artisan.localize("ARTISAN.HelpDialogTitle");

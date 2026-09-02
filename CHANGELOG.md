@@ -3,6 +3,22 @@
 Tutte le modifiche rilevanti di Artisan sono documentate in questo file.  
 All notable changes to Artisan are documented in this file.
 
+## [1.3.3] - 2026-09-02
+
+### Italiano
+
+- Aggiunto il selettore “Personaggio attivo” nella finestra principale di Artisan.
+- Il personaggio scelto viene usato da Ricette, Raccolta, Caccia, Dissassemblare e gestione Professioni anche senza un token sulla scena.
+- L'opzione automatica continua a utilizzare il token selezionato e mantiene il comportamento delle versioni precedenti.
+- L'elenco privilegia i personaggi giocanti e gli Actor con proprietari giocatori, con compatibilità di ripiego per sistemi diversi da D&D 5e.
+
+### English
+
+- Added an “Active character” selector to the main Artisan window.
+- The chosen character is used by Recipes, Gathering, Hunting, Disassembly and Profession management even without a token on the scene.
+- Automatic mode continues to use the selected token and preserves the behavior of previous versions.
+- The list prioritizes player characters and Actors with player owners, with a compatibility fallback for systems other than D&D 5e.
+
 ## [1.3.2] - 2026-09-02
 
 ### Italiano

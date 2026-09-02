@@ -231,6 +231,26 @@
 
     <main class="artisan-manager__content">
 
+        <section class="artisan-actor-selector" aria-label="{{localize 'ARTISAN.ActiveCharacter'}}">
+            <div class="artisan-actor-selector__label">
+                <i class="fa-solid fa-user-shield"></i>
+                <span>{{localize 'ARTISAN.ActiveCharacter'}}</span>
+            </div>
+            <select data-artisan-actor-selector>
+                <option value="" {{#if usingTokenActor}}selected{{/if}}>{{localize 'ARTISAN.UseSelectedToken'}}</option>
+                {{#each actorSelectorOptions}}
+                    <option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>
+                {{/each}}
+            </select>
+            <span class="artisan-actor-selector__status {{#unless selectedActorName}}is-empty{{/unless}}">
+                {{#if selectedActorName}}
+                    <i class="fa-solid fa-circle-check"></i>{{selectedActorName}}
+                {{else}}
+                    <i class="fa-solid fa-circle-exclamation"></i>{{localize 'ARTISAN.NoActiveCharacter'}}
+                {{/if}}
+            </span>
+        </section>
+
         {{#if isRecipesSection}}
 
             <header class="artisan-manager__toolbar">

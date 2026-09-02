@@ -582,6 +582,9 @@
   "ARTISAN.RecipeForgetPermissionDenied": "Only the GM can revoke a learned recipe.",
   "ARTISAN.RecipeLearnFailed": "The recipe could not be learned.",
   "ARTISAN.RecipeForgetFailed": "The recipe could not be revoked.",
+  "ARTISAN.ActiveCharacter": "Active character",
+  "ARTISAN.UseSelectedToken": "Automatic — use selected token",
+  "ARTISAN.NoActiveCharacter": "No character selected",
   "ARTISAN.DisassemblySource": "Disassembly source",
   "ARTISAN.Confirm": "Confirm"
 }
