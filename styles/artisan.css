@@ -3669,7 +3669,6 @@
     --artisan-danger: #8a3f35;
     --artisan-shadow: 0 8px 24px rgba(47, 35, 23, 0.12);
     --artisan-shadow-soft: 0 2px 8px rgba(47, 35, 23, 0.09);
-    position: relative;
     color: var(--artisan-ink) !important;
 }
 

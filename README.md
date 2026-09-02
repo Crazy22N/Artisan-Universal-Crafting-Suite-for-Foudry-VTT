@@ -1,6 +1,6 @@
 # Artisan — Crafting, Gathering & Professions for Foundry VTT
 
-**Versione / Version:** 1.3.1  
+**Versione / Version:** 1.3.2  
 **Foundry VTT:** v14, verificato su / verified on build 14.367  
 **Lingue / Languages:** Italiano, English
 
@@ -148,7 +148,7 @@ https://github.com/Crazy22N/Artisan-Universal-Crafting-Suite-for-Foudry-VTT/rele
 
 ## Installazione manuale / Manual installation
 
-1. Download `artisan-v1.3.1.zip` from the GitHub release.
+1. Download `artisan-v1.3.2.zip` from the GitHub release.
 2. Extract the `artisan` folder into Foundry VTT's `Data/modules/` folder.
 3. Restart Foundry VTT and enable Artisan in your world.
 

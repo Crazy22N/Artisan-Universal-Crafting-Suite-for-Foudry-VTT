@@ -115,7 +115,7 @@ var RecipeDocument = class {
       currencyDenomination: "gp",
       consumeCurrencyOnFailure: false,
       knowledgeMode: "copy",
-      consumeRecipeOnLearn: true,
+      consumeRecipeOnLearn: false,
       toolRequirement: "optional",
       toolCriticalDamage: false,
       qualityMode: "margin",
@@ -159,7 +159,7 @@ var RecipeDocument = class {
       currencyDenomination: this.normalizeCurrencyDenomination(merged.currencyDenomination ?? merged.currency ?? "gp"),
       consumeCurrencyOnFailure: Boolean(merged.consumeCurrencyOnFailure ?? false),
       knowledgeMode: this.normalizeKnowledgeMode(merged.knowledgeMode ?? "copy"),
-      consumeRecipeOnLearn: Boolean(merged.consumeRecipeOnLearn ?? true),
+      consumeRecipeOnLearn: Boolean(merged.consumeRecipeOnLearn ?? false),
       toolRequirement: String(merged.toolRequirement || "optional") === "required" ? "required" : "optional",
       toolCriticalDamage: Boolean(merged.toolCriticalDamage ?? false),
       qualityMode: this.normalizeQualityMode(merged.qualityMode ?? "margin"),
@@ -8957,7 +8957,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
     const recipe = RecipeDocument.getData(recipeItem);
     const confirmed = await this.confirmKnowledgeAction(
       grant ? game.i18n.localize("ARTISAN.GrantRecipe") : game.i18n.localize("ARTISAN.LearnRecipe"),
-      grant ? game.i18n.format("ARTISAN.GrantRecipeConfirm", { actor: actor.name, recipe: recipeItem.name }) : game.i18n.format("ARTISAN.LearnRecipeConfirm", { actor: actor.name, recipe: recipeItem.name })
+      grant ? game.i18n.format("ARTISAN.GrantRecipeConfirm", { actor: actor.name, recipe: recipeItem.name }) : game.i18n.format(recipe.consumeRecipeOnLearn ? "ARTISAN.LearnRecipeConsumeConfirm" : "ARTISAN.LearnRecipeConfirm", { actor: actor.name, recipe: recipeItem.name })
     );
     if (!confirmed) return;
     try {
@@ -9363,7 +9363,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
       currencyDenomination: this.normalizeRecipeCurrencyDenomination(recipe.currencyDenomination ?? recipe.currency ?? "gp"),
       consumeCurrencyOnFailure: Boolean(recipe.consumeCurrencyOnFailure ?? false),
       knowledgeMode: RecipeDocument.normalizeKnowledgeMode(recipe.knowledgeMode ?? "copy"),
-      consumeRecipeOnLearn: Boolean(recipe.consumeRecipeOnLearn ?? true),
+      consumeRecipeOnLearn: Boolean(recipe.consumeRecipeOnLearn ?? false),
       toolRequirement: String(recipe.toolRequirement ?? "optional") === "required" ? "required" : "optional",
       toolCriticalDamage: Boolean(recipe.toolCriticalDamage ?? false),
       qualityMode: this.normalizeRecipeQualityMode(recipe.qualityMode ?? "margin"),
@@ -9584,7 +9584,7 @@ var ArtisanManager = class extends HandlebarsApplicationMixin(ApplicationV2) {
             currencyDenomination: this.normalizeRecipeCurrencyDenomination(data.currencyDenomination ?? data.currency ?? "gp"),
             consumeCurrencyOnFailure: Boolean(data.consumeCurrencyOnFailure ?? false),
             knowledgeMode: RecipeDocument.normalizeKnowledgeMode(data.knowledgeMode ?? "copy"),
-            consumeRecipeOnLearn: Boolean(data.consumeRecipeOnLearn ?? true),
+            consumeRecipeOnLearn: Boolean(data.consumeRecipeOnLearn ?? false),
             toolRequirement: String(data.toolRequirement ?? "optional") === "required" ? "required" : "optional",
             toolCriticalDamage: Boolean(data.toolCriticalDamage ?? false),
             qualityMode: this.normalizeRecipeQualityMode(data.qualityMode ?? "margin"),

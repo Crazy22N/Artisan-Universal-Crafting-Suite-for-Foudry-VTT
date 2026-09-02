@@ -3,6 +3,22 @@
 Tutte le modifiche rilevanti di Artisan sono documentate in questo file.  
 All notable changes to Artisan are documented in this file.
 
+## [1.3.2] - 2026-09-02
+
+### Italiano
+
+- Corretto il posizionamento della finestra Artisan: l'apertura non sposta più la colonna laterale di Foundry al centro dello schermo.
+- Il consumo della copia durante l'apprendimento è ora disattivato per impostazione predefinita nelle ricette nuove o prive di questa configurazione.
+- La conferma di apprendimento indica chiaramente se la copia resterà nell'inventario oppure verrà rimossa.
+- Le ricette già apprese restano salvate nei dati Artisan del personaggio anche quando la relativa copia è stata consumata.
+
+### English
+
+- Fixed Artisan window positioning so opening it no longer moves Foundry's sidebar toward the center of the screen.
+- Consuming the recipe copy while learning is now disabled by default for new recipes and recipes without an explicit setting.
+- The learning confirmation now clearly states whether the inventory copy will remain or be removed.
+- Learned recipes remain stored in the character's Artisan data even when their inventory copy was consumed.
+
 ## [1.3.1] - 2026-09-02
 
 ### Italiano
