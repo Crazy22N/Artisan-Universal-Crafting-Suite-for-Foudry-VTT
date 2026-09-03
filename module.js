@@ -4331,17 +4331,14 @@ var ForagingService = class _ForagingService {
       ui.notifications.warn("La lista di raccolta non contiene risorse.");
       return;
     }
-    const baseHours = Math.max(0.25, Number(profile.time ?? 1));
-    const parsedRequestedHours = Number(requestedHours);
-    const totalHours = Number.isFinite(parsedRequestedHours) ? Math.max(baseHours, parsedRequestedHours) : baseHours;
-    const durationMultiplier = totalHours / baseHours;
+    const { baseHours, totalHours, attemptCount } = this.getForagingAttemptPlan(profile, requestedHours);
     const toolRequirementResult = await this.checkToolRequirement(actor, profile);
     if (!toolRequirementResult.allowed) {
       await this.sendBlockedByToolRequirementToChat(actor, profile, toolRequirementResult.details);
       ui.notifications.warn("Raccolta bloccata: manca uno strumento obbligatorio.");
       return;
     }
-    const confirmation = await this.confirmForaging(profile, actor, totalHours, durationMultiplier);
+    const confirmation = await this.confirmForaging(profile, actor, totalHours, attemptCount);
     if (!confirmation) {
       return;
     }
@@ -4350,34 +4347,47 @@ var ForagingService = class _ForagingService {
     const toolBonus = toolBonusResult.totalBonus;
     const totalModifier = skillModifier + toolBonus;
     const formula = totalModifier === 0 ? "1d20" : `1d20 ${totalModifier >= 0 ? "+" : "-"} ${Math.abs(totalModifier)}`;
-    const roll = await new Roll(formula).evaluate();
-    const total = Number(roll.total ?? 0);
-    const natural = this.getNaturalD20(roll);
-    const criticalSuccess = natural === 20;
-    const criticalFailure = natural === 1;
-    const success = !criticalFailure && (criticalSuccess || total >= profile.dc);
-    const selectedResources = success ? await this.getMixedResolvedResources(profile) : [];
     const professionService = new ProfessionService();
     const actorProfession = professionService.getActorProfession(actor, profile.profession);
     const effectiveProfessionLevel = actorProfession.level;
     const gatheringMultiplier = actorProfession.gatheringMultiplier;
-    const collectedResources = selectedResources.map((resource) => {
-      const rolledQuantity = Math.max(0, Number(resource.rolledQuantity ?? 0));
-      const normalQuantity = Math.max(
-        1,
-        rolledQuantity
-      );
-      const multipliedQuantity = this.applyProfessionMultiplier(normalQuantity, gatheringMultiplier);
-      const durationQuantity = Math.max(1, Math.floor(multipliedQuantity * durationMultiplier));
-      const finalQuantity = criticalSuccess ? durationQuantity * 2 : durationQuantity;
-      return {
-        ...resource,
-        normalQuantity,
-        multipliedQuantity,
-        durationQuantity,
-        finalQuantity
-      };
-    });
+    const attempts = [];
+    for (let index = 0; index < attemptCount; index += 1) {
+      const roll = await new Roll(formula).evaluate();
+      const total = Number(roll.total ?? 0);
+      const natural = this.getNaturalD20(roll);
+      const criticalSuccess = natural === 20;
+      const criticalFailure = natural === 1;
+      const success = !criticalFailure && (criticalSuccess || total >= profile.dc);
+      const selectedResources = success ? await this.getMixedResolvedResources(profile) : [];
+      const collectedResources = selectedResources.map((resource) => {
+        const rolledQuantity = Math.max(0, Number(resource.rolledQuantity ?? 0));
+        const normalQuantity = Math.max(1, rolledQuantity);
+        const multipliedQuantity = this.applyProfessionMultiplier(normalQuantity, gatheringMultiplier);
+        const finalQuantity = criticalSuccess ? multipliedQuantity * 2 : multipliedQuantity;
+        return {
+          ...resource,
+          normalQuantity,
+          multipliedQuantity,
+          finalQuantity
+        };
+      });
+      const criticalFailureToolDamage = criticalFailure ? this.isProfileToolCriticalDamageEnabled(profile) ? await this.damageForagingTool(actor, profile) : game.i18n.localize("ARTISAN.ToolDamageDisabled") : null;
+      const xpGained = success ? this.calculateForagingXp(profile, collectedResources.length, criticalSuccess) : 0;
+      attempts.push({
+        index: index + 1,
+        roll,
+        natural,
+        total,
+        success,
+        criticalSuccess,
+        criticalFailure,
+        collectedResources,
+        xpGained,
+        criticalFailureToolDamage
+      });
+    }
+    const collectedResources = this.aggregateForagingResources(attempts);
     for (const resource of collectedResources) {
       if (resource.finalQuantity <= 0) {
         continue;
@@ -4388,22 +4398,21 @@ var ForagingService = class _ForagingService {
         resource.finalQuantity
       );
     }
-    const criticalFailureToolDamage = criticalFailure ? this.isProfileToolCriticalDamageEnabled(profile) ? await this.damageForagingTool(actor, profile) : game.i18n.localize("ARTISAN.ToolDamageDisabled") : null;
-    const professionXpGained = success ? this.calculateForagingXp(profile, collectedResources.length, criticalSuccess, durationMultiplier) : 0;
+    const professionXpGained = attempts.reduce((total, attempt) => total + attempt.xpGained, 0);
     const actorProfessionAfterXp = professionXpGained > 0 ? await professionService.addActorProfessionXp(actor, profile.profession, professionXpGained) : actorProfession;
+    const successCount = attempts.filter((attempt) => attempt.success).length;
+    const failureCount = attemptCount - successCount;
     await this.sendForagingResultToChat({
       actor,
       profile,
       rollFormula: formula,
-      natural,
-      total,
       skillModifier,
-      success,
-      criticalSuccess,
-      criticalFailure,
       baseHours,
       totalHours,
-      durationMultiplier,
+      attemptCount,
+      successCount,
+      failureCount,
+      attempts,
       collectedResources,
       toolBonus,
       toolBonusDetails: toolBonusResult.details,
@@ -4417,20 +4426,47 @@ var ForagingService = class _ForagingService {
       actorProfessionXpAfter: actorProfessionAfterXp.xp,
       xpToNextLevel: actorProfessionAfterXp.xpToNextLevel,
       xpForNextLevel: actorProfessionAfterXp.xpForNextLevel,
-      progressPercent: actorProfessionAfterXp.progressPercent,
-      criticalFailureToolDamage
+      progressPercent: actorProfessionAfterXp.progressPercent
     });
-    if (criticalSuccess) {
-      ui.notifications.info("Raccolta riuscita con successo critico.");
-    } else if (success) {
-      ui.notifications.info("Raccolta riuscita.");
-    } else if (criticalFailure) {
-      ui.notifications.error("Raccolta fallita criticamente.");
+    if (successCount > 0) {
+      ui.notifications.info(`Raccolta completata: ${successCount} successi e ${failureCount} fallimenti su ${attemptCount} prove.`);
     } else {
-      ui.notifications.warn("Raccolta fallita.");
+      ui.notifications.warn(`Raccolta completata: tutte le ${attemptCount} prove sono fallite.`);
     }
   }
-  async confirmForaging(profile, actor, totalHours, durationMultiplier) {
+  getForagingAttemptPlan(profile, requestedHours = null) {
+    const baseHours = Math.max(0.25, Number(profile?.time ?? 1));
+    const parsedRequestedHours = Number(requestedHours);
+    const requestedTotalHours = Number.isFinite(parsedRequestedHours) ? Math.max(baseHours, parsedRequestedHours) : baseHours;
+    const attemptCount = Math.max(1, Math.floor(requestedTotalHours / baseHours + 1e-9));
+    return {
+      baseHours,
+      totalHours: attemptCount * baseHours,
+      attemptCount
+    };
+  }
+  aggregateForagingResources(attempts) {
+    const resourcesByUuid = /* @__PURE__ */ new Map();
+    for (const attempt of attempts) {
+      for (const resource of attempt.collectedResources ?? []) {
+        const key = String(resource.uuid ?? resource.name ?? "");
+        if (!key) {
+          continue;
+        }
+        const existing = resourcesByUuid.get(key);
+        if (existing) {
+          existing.finalQuantity += Math.max(0, Number(resource.finalQuantity ?? 0));
+        } else {
+          resourcesByUuid.set(key, {
+            ...resource,
+            finalQuantity: Math.max(0, Number(resource.finalQuantity ?? 0))
+          });
+        }
+      }
+    }
+    return Array.from(resourcesByUuid.values());
+  }
+  async confirmForaging(profile, actor, totalHours, attemptCount) {
     const resources = await this.toComponentViews(
       profile,
       "resources",
@@ -4462,7 +4498,7 @@ var ForagingService = class _ForagingService {
                 <p><strong>Abilit\xE0:</strong> ${this.escapeHtml(profile.skill || "Non impostata")}</p>
                 <p><strong>CD:</strong> ${profile.dc}</p>
                 <p><strong>Durata base:</strong> ${this.formatHours(profile.time)}</p>
-                <p><strong>Ore di questo tiro:</strong> ${this.formatHours(totalHours)} · quantità e XP ×${this.formatMultiplier(durationMultiplier)}</p>
+                <p><strong>Durata totale:</strong> ${this.formatHours(totalHours)} · ${attemptCount} prove separate da ${this.formatHours(profile.time)}</p>
                 <p><strong>Massimo risorse diverse:</strong> ${profile.maxResources}</p>
 
                 <h4>Risorse possibili</h4>
@@ -4899,29 +4935,37 @@ var ForagingService = class _ForagingService {
     const result = firstTerm?.results?.[0]?.result;
     return typeof result === "number" ? result : null;
   }
-  calculateForagingXp(profile, collectedResourceCount, criticalSuccess, durationMultiplier = 1) {
+  calculateForagingXp(profile, collectedResourceCount, criticalSuccess) {
     const resourceBonus = Math.max(1, Math.floor(Number(collectedResourceCount ?? 0)));
-    const baseXp = Math.max(1, Math.floor(resourceBonus * Math.max(1, Number(durationMultiplier ?? 1))));
-    return criticalSuccess ? baseXp * 2 : baseXp;
+    return criticalSuccess ? resourceBonus * 2 : resourceBonus;
   }
   async sendForagingResultToChat(data) {
-    const title = data.criticalSuccess ? "🌟 Successo critico Raccolta" : data.criticalFailure ? "💥 Fallimento critico Raccolta" : data.success ? "✅ Raccolta riuscita" : "❌ Raccolta fallita";
+    const title = data.successCount === data.attemptCount ? "✅ Raccolta completata" : data.successCount > 0 ? "📋 Raccolta parzialmente riuscita" : "❌ Raccolta fallita";
     const professionLabel = this.escapeHtml(this.getProfessionLabel(data.profile.profession));
     const levelUp = data.actorProfessionLevelAfter > data.actorProfessionLevel ? " ⭐" : "";
     const nextLevel = data.xpForNextLevel === null ? "livello massimo" : `${data.xpToNextLevel} XP al prossimo livello`;
     const xpLine = `${professionLabel} · Lv ${data.actorProfessionLevel} → ${data.actorProfessionLevelAfter}${levelUp} · XP ${data.actorProfessionXp} → ${data.actorProfessionXpAfter} (+${data.xpGained}) · ${nextLevel}`;
+    const attemptRows = data.attempts.map((attempt) => {
+      const status = attempt.criticalSuccess ? "🌟 Successo critico" : attempt.criticalFailure ? "💥 Fallimento critico" : attempt.success ? "✅ Successo" : "❌ Fallimento";
+      const rewards = attempt.collectedResources.length > 0 ? attempt.collectedResources.map((resource) => `${this.formatRewardName(resource)} ×${resource.finalQuantity}`).join(", ") : "Nessun materiale";
+      const naturalLabel = attempt.natural === null ? "" : ` <small>(d20: ${attempt.natural})</small>`;
+      return `<tr><td>${attempt.index}</td><td>${attempt.total}${naturalLabel} vs CD ${data.profile.dc}</td><td>${status}</td><td>${rewards}</td></tr>`;
+    }).join("");
     const resourceRows = data.collectedResources.length > 0 ? data.collectedResources.map((resource) => `
       <tr><td>${this.formatRewardName(resource)}</td><td>${resource.finalQuantity}</td></tr>
     `).join("") : `<tr><td colspan="2">Nessuna risorsa raccolta.</td></tr>`;
-    const toolDamage = data.criticalFailure && data.criticalFailureToolDamage ? `<p><strong>💥 Strumento:</strong> ${this.escapeHtml(data.criticalFailureToolDamage)}</p>` : "";
+    const toolDamageRows = data.attempts.filter((attempt) => attempt.criticalFailureToolDamage).map((attempt) => `<li><strong>Prova ${attempt.index}:</strong> ${this.escapeHtml(attempt.criticalFailureToolDamage)}</li>`).join("");
+    const toolDamage = toolDamageRows ? `<p><strong>💥 Strumenti:</strong></p><ul>${toolDamageRows}</ul>` : "";
     const content = `
       <div class="artisan-chat-card artisan-chat-card--compact">
         <h2>${title}</h2>
         <p><strong>${this.escapeHtml(data.profile.name)}</strong> · ${this.escapeHtml(data.actor.name ?? "Attore")}</p>
-        <p><strong>🎲 ${this.escapeHtml(data.profile.skill || "Prova")}: ${data.total} vs CD ${data.profile.dc}</strong> · ${this.escapeHtml(this.getBiomeLabel(data.profile.biome))}</p>
-        <p><strong>⏱ Durata:</strong> ${this.formatHours(data.totalHours)} · quantità e XP ×${this.formatMultiplier(data.durationMultiplier)}</p>
+        <p><strong>🎲 ${this.escapeHtml(data.profile.skill || "Prova")}</strong> · ${this.escapeHtml(this.getBiomeLabel(data.profile.biome))} · ${data.successCount} successi, ${data.failureCount} fallimenti</p>
+        <p><strong>⏱ Durata:</strong> ${this.formatHours(data.totalHours)} · ${data.attemptCount} prove separate da ${this.formatHours(data.baseHours)}</p>
         <p class="artisan-chat-xp"><strong>⭐ Esperienza:</strong> ${xpLine}</p>
-        <h3>Risorse raccolte</h3>
+        <h3>Risultato delle prove</h3>
+        <table><thead><tr><th>#</th><th>Tiro</th><th>Esito</th><th>Materiali</th></tr></thead><tbody>${attemptRows}</tbody></table>
+        <h3>Totale risorse raccolte</h3>
         <table><thead><tr><th>Risorsa</th><th>Quantità</th></tr></thead><tbody>${resourceRows}</tbody></table>
         ${toolDamage}
       </div>`;

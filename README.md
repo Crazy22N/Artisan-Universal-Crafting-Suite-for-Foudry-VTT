@@ -1,6 +1,6 @@
 # Artisan — Crafting, Gathering & Professions for Foundry VTT
 
-**Versione / Version:** 1.3.3  
+**Versione / Version:** 1.3.4  
 **Foundry VTT:** v14, verificato su / verified on build 14.367  
 **Lingue / Languages:** Italiano, English
 
@@ -36,7 +36,8 @@ Il modulo permette al GM di creare ricette, liste di raccolta, liste di caccia e
   - Quantità minime e massime per ogni risorsa.
   - Rarità/probabilità individuale per ogni risorsa.
   - Strumenti opzionali o obbligatori.
-  - Più ore di raccolta con un solo tiro, con quantità ed esperienza proporzionate alla durata scelta.
+  - Più ore di raccolta con una prova separata per ogni intervallo della durata base e un unico riepilogo finale.
+  - Successi, fallimenti, materiali e critici vengono calcolati indipendentemente per ogni prova.
   - Progressione tramite professioni.
 
 - **Caccia**
@@ -102,7 +103,8 @@ The module lets the GM create recipes, gathering lists, hunting lists and disass
   - Minimum and maximum quantity per resource.
   - Individual rarity/probability for each resource.
   - Optional or required tools.
-  - Multiple gathering hours with a single check, scaling quantities and XP by the selected duration.
+  - Multiple gathering hours with one separate check per base-duration interval and a single final summary.
+  - Successes, failures, materials and critical results are calculated independently for each check.
   - Profession-based progression.
 
 - **Hunting**
@@ -148,7 +150,7 @@ https://github.com/Crazy22N/Artisan-Universal-Crafting-Suite-for-Foudry-VTT/rele
 
 ## Installazione manuale / Manual installation
 
-1. Download `artisan-v1.3.3.zip` from the GitHub release.
+1. Download `artisan-v1.3.4.zip` from the GitHub release.
 2. Extract the `artisan` folder into Foundry VTT's `Data/modules/` folder.
 3. Restart Foundry VTT and enable Artisan in your world.
 

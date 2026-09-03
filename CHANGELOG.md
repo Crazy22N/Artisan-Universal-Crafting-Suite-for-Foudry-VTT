@@ -3,6 +3,22 @@
 Tutte le modifiche rilevanti di Artisan sono documentate in questo file.  
 All notable changes to Artisan are documented in this file.
 
+## [1.3.4] - 2026-09-03
+
+### Italiano
+
+- Raccolta: le ore selezionate vengono ora divise in prove indipendenti in base alla durata base della lista.
+- Ogni prova esegue un proprio d20, determina separatamente successo o fallimento e genera autonomamente risorse e quantità.
+- Successi critici, fallimenti critici, XP e danni agli strumenti vengono applicati alla singola prova.
+- Tutti gli esiti e i materiali complessivi sono riuniti in un solo messaggio di chat.
+
+### English
+
+- Gathering: selected hours are now divided into independent checks according to the list's base duration.
+- Every check rolls its own d20, resolves success or failure separately and generates its own resources and quantities.
+- Critical successes, critical failures, XP and tool damage are applied to each individual check.
+- All outcomes and aggregate materials are combined into a single chat message.
+
 ## [1.3.3] - 2026-09-02
 
 ### Italiano
